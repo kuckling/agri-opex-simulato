@@ -844,7 +844,68 @@
     render(lastResult);
     updateSatelliteCheck(origen, origen, false);
   }
+// ============================================================
+// CONEXIÓN A THINGSPEAK - Estación Gualán (Canal 3225843)
+// ============================================================
+const TS_CHANNEL = 3225843;
+const TS_URL = `https://api.thingspeak.com/channels/${TS_CHANNEL}/feeds/last.json`;
 
+async function connectToThingSpeak() {
+  const statusEl = document.getElementById("connStatus");
+  const originMeta = ORIGENES.zacapa;
+
+  try {
+    const res = await fetch(TS_URL + "?_=" + Date.now());
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+
+    const temp     = parseFloat(data.field1);
+    const humidity = parseFloat(data.field2);
+    const pressure = parseFloat(data.field3);
+
+    if (isNaN(temp) || isNaN(humidity) || isNaN(pressure)) {
+      throw new Error("Datos incompletos de ThingSpeak");
+    }
+
+    const cultivo    = getSelected("cropSelect", CULTIVOS);
+    const destino    = getSelected("destSelect", DESTINOS);
+    const diameter   = readNumber("domeDiameter", 10, 1);
+    const budget     = readNumber("energyBudget", 15, 0.1);
+    const tariff     = readNumber("tariff", 1.376, 0);
+    const localPrice = readNumber("localPrice", 15, 0.01);
+
+    const origenLive = {
+      nombre: "Gualán — en vivo (ThingSpeak)",
+      nombreCorto: "Gualán (vivo)",
+      temp: temp,
+      pressure: pressure,
+      humidity: humidity,
+      lat: originMeta.lat,
+      lon: originMeta.lon,
+      elev_m: originMeta.elev_m
+    };
+
+    lastResult = runFullCalc(origenLive, destino, cultivo, diameter, budget, tariff, localPrice);
+    render(lastResult);
+    updateSatelliteCheck(origenLive, originMeta, true);
+
+    const updated = new Date(data.created_at);
+    const agoSec = Math.round((Date.now() - updated.getTime()) / 1000);
+    const agoText = agoSec < 60 ? `hace ${agoSec}s` : `hace ${Math.round(agoSec/60)} min`;
+
+    if (statusEl) {
+      statusEl.textContent = `En vivo · Gualán (ThingSpeak) · ${agoText}`;
+      statusEl.className = "conn-status live";
+    }
+  } catch (err) {
+    console.error(err);
+    if (statusEl) {
+      statusEl.textContent = "No se pudo leer ThingSpeak — modo demo";
+      statusEl.className = "conn-status demo";
+    }
+    recalcDemo();
+  }
+}
   async function connectToESP(){
     var originKey = document.getElementById("originSelect").value;
     var originMeta = ORIGENES[originKey] || ORIGENES.zacapa;
