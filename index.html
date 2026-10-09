@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agri-OPEX Simulator: Tierra vs. Ambientes Extremos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e14; --panel:#11161f; --panel-border:#1e2530;
+    --text:#e7ecf3; --text-dim:#8b95a5;
+    --zacapa:#4fd67a; --mars:#e0553f; --amber:#f0a63a;
+    --cyan:#46c2c9; --danger:#e0553f; --good:#4fd67a; --warn:#f0a63a;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background: radial-gradient(1200px 600px at 15% -10%, #131b28 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family:'Inter',sans-serif;
+    padding: 40px 32px 80px;
+  }
+  header{ display:flex; align-items:baseline; gap:14px; margin-bottom:8px; flex-wrap:wrap; }
+  header .rocket{ font-size:30px; }
+  h1{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:28px; margin:0; letter-spacing:-0.01em; }
+  .subtitle{ color:var(--text-dim); font-size:14px; margin:0 0 22px; max-width:900px; line-height:1.5; }
+  .scope-note{
+    background:rgba(70,194,201,0.08); border:1px solid rgba(70,194,201,0.25);
+    border-radius:8px; padding:10px 14px; font-size:12.5px;
+    color:var(--text-dim); margin-bottom:20px; line-height:1.5;
+  }
+  .scope-note strong{ color:var(--cyan); }
+  .grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; margin-bottom:18px; }
+  @media (max-width:900px){ .grid{ grid-template-columns:1fr; } }
+  .card{ background:var(--panel); border:1px solid var(--panel-border); border-radius:12px; padding:22px 24px; }
+  .card.accent-zacapa{ border-color:rgba(79,214,122,0.35); }
+  .card.accent-mars{ border-color:rgba(224,85,63,0.35); }
+  .card.accent-amber{ border-color:rgba(240,166,58,0.5); }
+  .card.accent-cyan{ border-color:rgba(70,194,201,0.4); }
+  .card-title{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:15px;
+    margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--panel-border);
+  }
+  .card-title .left{ display:flex; align-items:center; gap:8px; }
+  .card-title .right{ font-size:12px; color:var(--text-dim); font-weight:400; }
+  .dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .dot.zacapa{ background:var(--zacapa); }
+  .dot.mars{ background:var(--mars); }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; font-size:14px; color:var(--text-dim); padding:5px 0; }
+  .row .value{ color:var(--text); font-family:'JetBrains Mono',monospace; font-weight:700; font-size:15px; }
+  .row .unit{ font-family:'Inter',sans-serif; font-weight:400; font-size:12px; color:var(--text-dim); margin-left:3px; }
+  .status-line{ padding-top:10px; margin-top:6px; border-top:1px solid var(--panel-border); font-size:13px; }
+  .status-line .value.good{ color:var(--good); }
+  .status-line .value.warn{ color:var(--warn); }
+  .status-line .value.bad{ color:var(--danger); }
+  .opex-hero{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:18px; }
+  @media (max-width:700px){ .opex-hero{ grid-template-columns:1fr; } }
+  .opex-block{ background:#0d1219; border:1px solid var(--panel-border); border-radius:10px; padding:16px 18px; text-align:center; }
+  .opex-block .label{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px; }
+  .opex-block .num{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:26px; line-height:1; }
+  .opex-block .num.q{ color:var(--amber); }
+  .opex-block .num.kw{ color:var(--cyan); }
+  .opex-block .num.melon{ color:var(--zacapa); }
+  .opex-block .sublabel{ font-size:11px; color:var(--text-dim); margin-top:6px; }
+  .energy-total{ display:flex; align-items:flex-end; gap:8px; margin:4px 0 16px; }
+  .energy-total .big{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:38px; line-height:1; color:var(--cyan); }
+  .energy-total .big-unit{ font-size:14px; color:var(--text-dim); padding-bottom:4px; }
+  .bar-row{ margin:12px 0; }
+  .bar-label{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-dim); margin-bottom:5px; }
+  .bar-label .val{ color:var(--text); font-family:'JetBrains Mono',monospace; }
+  .bar-track{ height:7px; background:#1a212c; border-radius:4px; overflow:hidden; }
+  .bar-fill{ height:100%; border-radius:4px; transition:width 0.4s ease; }
+  .bar-fill.heat{ background:var(--mars); }
+  .bar-fill.press{ background:var(--cyan); }
+  .bar-fill.humid{ background:var(--zacapa); }
+  .bar-fill.initial{ background:#a06fdb; }
+  .bar-fill.led{ background:var(--amber); }
+  .opex-table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:4px; }
+  .opex-table th{
+    text-align:left; color:var(--text-dim); font-weight:500; font-size:11.5px;
+    text-transform:uppercase; letter-spacing:0.05em; padding:8px 6px;
+    border-bottom:1px solid var(--panel-border);
+  }
+  .opex-table td{ padding:8px 6px; border-bottom:1px solid rgba(30,37,48,0.6); font-family:'JetBrains Mono',monospace; font-size:12.5px; }
+  .opex-table td:first-child{ font-family:'Inter',sans-serif; color:var(--text-dim); }
+  .opex-table tr.total td{ font-weight:700; color:var(--text); border-top:1px solid var(--panel-border); border-bottom:none; padding-top:12px; }
+  .opex-table td.num{ text-align:right; }
+  .gauge-wrap{ display:flex; flex-direction:column; align-items:center; padding-top:4px; }
+  .gauge-value{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:34px; margin-top:-74px; transition:font-size 0.2s ease; }
+  .gauge-caption{ font-size:12.5px; color:var(--text-dim); margin-top:2px; text-align:center; max-width:240px; }
+  .gauge-status{ margin-top:10px; font-size:13px; font-weight:600; padding:4px 12px; border-radius:20px; }
+  .gauge-deficit{ margin-top:8px; font-size:12px; color:var(--text-dim); text-align:center; }
+  .gauge-deficit .val{ font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--danger); }
+  .gauge-deficit .val.good{ color:var(--good); }
+  .crop-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:700px){ .crop-grid{ grid-template-columns:1fr; } }
+  .method-card{ background:#0d1219; border:1px solid var(--panel-border); border-radius:10px; padding:16px 18px; }
+  .method-name{ font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:14px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
+  .badge{ font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:20px; background:rgba(240,166,58,0.15); color:var(--amber); }
+  .method-stat{ display:flex; justify-content:space-between; font-size:13px; padding:4px 0; color:var(--text-dim); }
+  .method-stat .value{ color:var(--text); font-family:'JetBrains Mono',monospace; font-weight:700; }
+  .melon-count{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:28px; color:var(--zacapa); margin-top:8px; }
+  .cost-compare{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:18px; margin-top:6px; }
+  @media (max-width:700px){ .cost-compare{ grid-template-columns:1fr; } }
+  .cost-block{ text-align:center; }
+  .cost-block .planet{ font-size:13px; color:var(--text-dim); margin-bottom:8px; }
+  .cost-block .price{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:38px; }
+  .cost-block.earth .price{ color:var(--zacapa); }
+  .cost-block.mars .price{ color:var(--mars); }
+  .cost-block .price-sub{ font-size:12px; color:var(--text-dim); margin-top:4px; }
+  .vs-divider{ font-family:'Space Grotesk',sans-serif; color:var(--text-dim); font-size:13px; text-align:center; }
+  .multiplier{ text-align:center; margin-top:18px; padding-top:16px; border-top:1px solid var(--panel-border); font-size:14px; color:var(--text-dim); }
+  .multiplier .num{ font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber); font-size:17px; }
+  .controls{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:20px; font-size:13px; color:var(--text-dim); }
+  .controls input, .controls select{
+    background:#0d1219; border:1px solid var(--panel-border); color:var(--text);
+    padding:7px 10px; border-radius:7px; font-family:'JetBrains Mono',monospace;
+    font-size:13px; width:100px;
+  }
+  .controls select{ width:auto; min-width:130px; }
+  .controls label{ display:flex; align-items:center; gap:6px; }
+  .controls button{
+    background:var(--cyan); color:#06222a; border:none; font-weight:700;
+    font-size:13px; padding:8px 16px; border-radius:7px; cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .controls button:hover{ opacity:0.88; }
+  .controls button.secondary{ background:transparent; color:var(--text); border:1px solid var(--panel-border); }
+  .controls button.secondary:hover{ background:#1a212c; }
+  .conn-status{ font-size:12px; padding:6px 12px; border-radius:20px; background:#1a212c; }
+  .conn-status.live{ color:var(--zacapa); }
+  .conn-status.demo{ color:var(--amber); }
+  .sat-top{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+  @media (max-width:700px){ .sat-top{ grid-template-columns:1fr; } }
+  .opex-table td.good{ color:var(--good); }
+  .opex-table td.warn{ color:var(--warn); }
+  .opex-table td.bad{ color:var(--danger); }
+  .opex-table .sat-sub{ display:block; font-size:11px; color:var(--text-dim); font-family:'Inter',sans-serif; }
+  .sat-note{ margin-top:14px; font-size:12px; color:var(--text-dim); line-height:1.55; }
+  .sat-note strong{ color:var(--cyan); }
+  .opex-block .num.good{ color:var(--good); }
+  .opex-block .num.warn{ color:var(--warn); }
+  .opex-block .num.bad{ color:var(--danger); }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="rocket">🚀</span>
+  <h1>Agri-OPEX Simulator: Tierra vs. Ambientes Extremos</h1>
+</header>
+<p class="subtitle">Modelo de <strong>costo operativo (OPEX)</strong> para agricultura en ambientes controlados. Compara el costo real de sostener un cultivo en Zacapa (Tierra) contra Marte u otros destinos hostiles, usando física de transporte de energía y masa.</p>
+
+<div class="scope-note">
+  <strong>Alcance del modelo:</strong> OPEX energético (calefacción + presurización + humidificación + calentamiento inicial + iluminación LED). Excluye CAPEX del domo, costo del agua, nutrientes, mano de obra y mantenimiento — documentados como trabajo futuro.
+  <br><strong>Nota metodológica:</strong> el coeficiente de aislamiento del domo (U = 1.0 W/m²·°C) y la densidad de iluminación LED (150 W/m²) son supuestos de ingeniería, no datos medidos — se usaron como referencia estructuras de invernadero de aislamiento moderado y sistemas de iluminación suplementaria de alta intensidad. Ajustables en el código según el diseño real del biodomo.
+</div>
+
+<div class="scope-note" style="border-color: rgba(79,214,122,0.25); background: rgba(79,214,122,0.06); display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+  <span style="font-size:22px;">📡</span>
+  <span>
+    <strong style="color:var(--zacapa);">Red EBC Kuckling:</strong> los datos de origen provienen de nuestra propia red de estaciones meteorológicas de bajo costo, operando en tiempo real en
+    <strong>Zacapa</strong>, <strong>Cobán (Alta Verapaz)</strong>, <strong>Teocinte (Santa Rosa)</strong>, <strong>Gualán</strong> y <strong>Esquipulas</strong>.
+    Este simulador nació de comparar esos datos reales contra las condiciones de Marte.
+  </span>
+</div>
+
+<div class="controls">
+  <label>Origen:
+    <select id="originSelect">
+      <option value="zacapa" selected>Gualán, Zacapa</option>
+      <option value="coban">Cobán, Alta Verapaz</option>
+      <option value="teocinte_sr">Teocinte, Santa Rosa</option>
+    </select>
+  </label>
+  <label>Cultivo:
+    <select id="cropSelect">
+      <option value="melon" selected>Melón</option>
+    </select>
+  </label>
+  <label>Destino:
+    <select id="destSelect">
+      <option value="marte" selected>Marte (NASA)</option>
+      <option value="luna">Luna</option>
+      <option value="atacama">Desierto de Atacama</option>
+      <option value="altura_gt">Altura guatemalteca (2500 m)</option>
+    </select>
+  </label>
+  <label>IP de la estación: <input type="text" id="espIp" placeholder="192.168.1.50"></label>
+  <button onclick="connectToESP()">Conectar</button>
+  <label>Diámetro domo (m): <input type="number" id="domeDiameter" value="10" step="1" min="1"></label>
+  <label>Presupuesto (kW): <input type="number" id="energyBudget" value="15" step="1" min="0.1"></label>
+  <label>Tarifa (Q/kWh): <input type="number" id="tariff" value="1.376" step="0.01" min="0"></label>
+  <label>Precio local (Q): <input type="number" id="localPrice" value="15" step="1" min="0.01"></label>
+  <button onclick="recalcDemo()">Recalcular</button>
+  <button class="secondary" onclick="exportReport()">Exportar reporte</button>
+  <span class="conn-status demo" id="connStatus">Modo demo (sin ESP32)</span>
+</div>
+
+<div class="opex-hero">
+  <div class="opex-block">
+    <div class="label">OPEX diario</div>
+    <div class="num q" id="opexDay">Q—</div>
+    <div class="sublabel" id="opexDayKwh">— kWh/día</div>
+  </div>
+  <div class="opex-block">
+    <div class="label">Potencia continua</div>
+    <div class="num kw" id="opexKW">—</div>
+    <div class="sublabel">kW promedio (incluye LED)</div>
+  </div>
+  <div class="opex-block">
+    <div class="label">Costo por fruto</div>
+    <div class="num melon" id="opexPerMelon">Q—</div>
+    <div class="sublabel" id="opexPerMelonMult">— × precio local</div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card accent-zacapa">
+    <div class="card-title">
+      <span class="left"><span class="dot zacapa"></span>📍 Origen (BME280)</span>
+      <span class="right" id="originName">Zacapa</span>
+    </div>
+    <div class="row">Temperatura <span class="value" id="zTemp">32.5<span class="unit">°C</span></span></div>
+    <div class="row">Presión <span class="value" id="zPress">1011.2<span class="unit">hPa</span></span></div>
+    <div class="row">Humedad <span class="value" id="zHum">62<span class="unit">%</span></span></div>
+    <div class="status-line row">Estado <span class="value good" id="originStatus">Óptimo</span></div>
+  </div>
+
+  <div class="card accent-mars">
+    <div class="card-title">
+      <span class="left"><span class="dot mars"></span>🔴 Destino exterior</span>
+      <span class="right" id="destName">Marte</span>
+    </div>
+    <div class="row">Temperatura <span class="value" id="mTemp">-63.0<span class="unit">°C</span></span></div>
+    <div class="row">Presión <span class="value" id="mPress">7.5<span class="unit">hPa</span></span></div>
+    <div class="row">Humedad <span class="value" id="mHum">0.03<span class="unit">%</span></span></div>
+    <div class="status-line row">Estado <span class="value bad" id="destStatus">Entorno hostil</span></div>
+  </div>
+
+  <div class="card accent-amber">
+    <div class="card-title">🛠️ Ajustes necesarios en biodomo</div>
+    <div class="row">Calefacción <span class="value" id="dTemp">+95.5<span class="unit">°C</span></span></div>
+    <div class="row">Presurización <span class="value" id="dPress">+1003.7<span class="unit">hPa</span></span></div>
+    <div class="row">Humidificación <span class="value" id="dHum">+62.0<span class="unit">%</span></span></div>
+    <div class="row">Punto de rocío objetivo <span class="value" id="dewPoint">16.4<span class="unit">°C</span></span></div>
+  </div>
+</div>
+
+<div class="card accent-cyan" style="margin-bottom:18px;">
+  <div class="card-title">
+    <span class="left">🛰️ Validación cruzada: estación vs. NASA POWER</span>
+    <span class="right" id="satStatus">Consultando NASA POWER…</span>
+  </div>
+  <div class="sat-top">
+    <div class="opex-block">
+      <div class="label">Índice de concordancia</div>
+      <div class="num kw" id="satScore">—</div>
+      <div class="sublabel" id="satScoreLabel">estación vs. satélite</div>
+    </div>
+    <div class="opex-block">
+      <div class="label">Insolación (ALLSKY)</div>
+      <div class="num q" id="satSolar">—</div>
+      <div class="sublabel">kWh/m²/día · promedio de los últimos días</div>
+    </div>
+    <div class="opex-block">
+      <div class="label">Humedad superficial del suelo</div>
+      <div class="num melon" id="satSoil">—</div>
+      <div class="sublabel" id="satSoilLabel">saturación relativa (GWETTOP)</div>
+    </div>
+  </div>
+  <table class="opex-table">
+    <thead>
+      <tr>
+        <th>Variable</th>
+        <th class="num">Estación</th>
+        <th class="num">NASA POWER</th>
+        <th class="num">Diferencia</th>
+        <th class="num">Concordancia</th>
+      </tr>
+    </thead>
+    <tbody id="satTableBody">
+    </tbody>
+  </table>
+  <div class="sat-note" id="satNote">
+    <strong>Cómo leerlo:</strong> el índice es una medida heurística de qué tan cerca está tu sensor del dato satelital
+    (tolerancias: temperatura dentro del rango diario del satélite ±5 °C, humedad ±25 puntos, presión ±10 hPa). No es una probabilidad estadística.
+    La estación mide en un instante; NASA POWER entrega promedios diarios de una celda de ~50 km con unos días de retraso.
+    La humedad de suelo viene de POWER (modelo MERRA-2), no de SMAP directamente.
+  </div>
+</div>
+
+<div class="scope-note" style="border-color: rgba(224,85,63,0.3); background: rgba(224,85,63,0.05);">
+  <strong style="color:var(--mars);">Fuente del clima marciano:</strong> el valor de referencia de Marte usado aquí (-63°C, 7.5 hPa)
+  proviene del promedio histórico de la misión InSight — cuya API de clima ya no recibe datos nuevos desde que la misión terminó en 2022.
+  Para validar que ese valor sigue siendo razonable, lo contrastamos manualmente contra el
+  <strong style="color:var(--cyan);">Mars Explorer de NASA Goddard (PSG)</strong>, que usa un modelo climatológico activo
+  (EMARS MY32, escenario de polvo moderado).
+  <br><strong>Próximo paso (roadmap):</strong> integrar esa fuente en vivo requiere el API completo de PSG —
+  una petición POST con un archivo de configuración y una respuesta en columnas espectrales ASCII, no un JSON simple —
+  así que por ahora se documenta como trabajo futuro en vez de arriesgar la demo con una integración más compleja el día del evento.
+</div>
+
+<div class="grid" style="grid-template-columns: 1.3fr 1fr;">
+  <div class="card accent-cyan">
+    <div class="card-title">⚡ Desglose de OPEX por componente</div>
+    <div class="energy-total">
+      <span class="big" id="totalPower">—</span>
+      <span class="big-unit">kW continuos (promedio del ciclo)</span>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label"><span>Pérdida de calor continua</span><span class="val" id="heatLossLabel">— W</span></div>
+      <div class="bar-track"><div class="bar-fill heat" id="heatBar" style="width:0%"></div></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"><span>Calentamiento inicial (amortizado)</span><span class="val" id="initialLabel">— W</span></div>
+      <div class="bar-track"><div class="bar-fill initial" id="initialBar" style="width:0%"></div></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"><span>Presurización (amortizada)</span><span class="val" id="pressLabel">— W</span></div>
+      <div class="bar-track"><div class="bar-fill press" id="pressBar" style="width:0%"></div></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"><span>Humidificación (amortizada)</span><span class="val" id="humidLabel">— W</span></div>
+      <div class="bar-track"><div class="bar-fill humid" id="humidBar" style="width:0%"></div></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"><span>Iluminación LED PAR</span><span class="val" id="ledLabel">— W</span></div>
+      <div class="bar-track"><div class="bar-fill led" id="ledBar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📊 Viabilidad del biodomo</div>
+    <div class="gauge-wrap">
+      <svg width="220" height="130" viewBox="0 0 220 130">
+        <path d="M 20 110 A 90 90 0 0 1 200 110" fill="none" stroke="#1a212c" stroke-width="16" stroke-linecap="round"/>
+        <path id="gaugeArc" d="M 20 110 A 90 90 0 0 1 200 110" fill="none" stroke="var(--good)" stroke-width="16" stroke-linecap="round" stroke-dasharray="283" stroke-dashoffset="283"/>
+      </svg>
+      <div class="gauge-value" id="gaugeValue">—</div>
+      <div class="gauge-caption">Presupuesto disponible vs. potencia requerida para sostener el biodomo</div>
+      <div class="gauge-status" id="gaugeStatus">Calculando…</div>
+      <div class="gauge-deficit" id="gaugeDeficit"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card accent-cyan" style="margin-bottom:18px;">
+  <div class="card-title">📋 OPEX por componente — Desglose detallado</div>
+  <table class="opex-table">
+    <thead>
+      <tr>
+        <th>Componente</th>
+        <th class="num">W promedio</th>
+        <th class="num">kWh/día</th>
+        <th class="num">Q/día</th>
+        <th class="num">% del OPEX</th>
+      </tr>
+    </thead>
+    <tbody id="opexTableBody">
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">🍈 Producción estimada (ciclo completo)</div>
+  <div class="crop-grid">
+    <div class="method-card">
+      <div class="method-name">Siembra en suelo <span class="badge">Tradicional</span></div>
+      <div class="method-stat">Área por planta <span class="value" id="areaSoil">1.35 m²</span></div>
+      <div class="method-stat">Plantas estimadas <span class="value" id="plantsSoil">—</span></div>
+      <div class="melon-count" id="melonsSoil">—</div>
+    </div>
+    <div class="method-card">
+      <div class="method-name">Tutorado vertical <span class="badge">Eficiente</span></div>
+      <div class="method-stat">Área por planta <span class="value" id="areaVertical">0.45 m²</span></div>
+      <div class="method-stat">Plantas estimadas <span class="value" id="plantsVertical">—</span></div>
+      <div class="melon-count" id="melonsVertical">—</div>
+    </div>
+  </div>
+  <div class="status-line row" style="margin-top:14px; border-top:1px solid var(--panel-border); padding-top:12px;">
+    Ciclo del cultivo <span class="value" id="cycleDays">90<span class="unit">días</span></span>
+  </div>
+</div>
+
+<div class="card accent-mars">
+  <div class="card-title">💰 OPEX por fruto: Tierra vs. destino hostil</div>
+  <div class="cost-compare">
+    <div class="cost-block earth">
+      <div class="planet">🍈 Fruto de origen (Tierra)</div>
+      <div class="price" id="earthPrice">Q—</div>
+      <div class="price-sub">precio de mercado local</div>
+    </div>
+    <div class="vs-divider">vs.</div>
+    <div class="cost-block mars">
+      <div class="planet">🔴 Fruto cultivado en destino</div>
+      <div class="price" id="marsPriceSoil">Q—</div>
+      <div class="price-sub" id="marsPriceLabel">solo OPEX energético · siembra en suelo</div>
+    </div>
+  </div>
+  <div class="multiplier">
+    Producirlo en destino cuesta <span class="num" id="multiplierSoil">—×</span> más que comprarlo en la Tierra
+    (con tutorado vertical: <span class="num" id="multiplierVertical">—×</span>)
+  </div>
+  <div class="status-line row" style="margin-top:14px;">
+    Tarifa usada <span class="value" style="color:var(--text-dim); font-family:'Inter',sans-serif; font-size:12px; font-weight:500;">
+      Basada en recibo real de ENEL/EEGSA Gualán — Q1.376/kWh (sin incluir generación solar/nuclear in situ)
+    </span>
+  </div>
+</div>
+
+<script>
+  // ============================================================
+  // CATALOGOS ESCALABLES
+  // ============================================================
+  var ORIGENES = {
+    // lat/lon/elev tomados de datos reales de Weather Underground (WU)
+    // de cada estacion. Se usan para consultar NASA POWER (satelite) como
+    // validacion cruzada del dato leido por el sensor local.
+    // Gualan (Zacapa): 15.11N, 89.36W, elev 403m -- la presion (1011.2 hPa)
+    // es lectura real del BME280, no se recalcula por elevacion.
+    zacapa: { nombre: "Gualán, Zacapa", nombreCorto: "Gualán", temp: 32.5, pressure: 1011.2, humidity: 62.0, espIp: "", lat: 15.11, lon: -89.36, elev_m: 403 },
+    // Coban: 15.47N, 90.37W, elev 1320m. Presion de referencia recalculada
+    // con formula barometrica estandar segun la elevacion real (864.4 hPa)
+    // -- se sobreescribe con el dato real del BME280 al conectar por WiFi.
+    coban: { nombre: "Cobán, Alta Verapaz", nombreCorto: "Cobán", temp: 20.5, pressure: 864.4, humidity: 85.0, espIp: "", lat: 15.47, lon: -90.37, elev_m: 1320 },
+    // Teocinte, Santa Rosa: 14.41N, 90.38W, elev 1242m. A esta altitud el
+    // clima es mas fresco que tierra baja de Santa Rosa -- temperatura y
+    // presion de referencia ajustadas acorde (872.7 hPa por formula
+    // barometrica); se sobreescriben con el dato real del BME280 al conectar.
+    teocinte_sr: { nombre: "Teocinte, Santa Rosa", nombreCorto: "Teocinte SR", temp: 19.5, pressure: 872.7, humidity: 78.0, espIp: "", lat: 14.41, lon: -90.38, elev_m: 1242 }
+  };
+
+  var DESTINOS = {
+    marte:     { nombre: "Marte (NASA)",                 nombreCorto: "Marte",     temp: -63.0, pressure: 7.5,  humidity: 0.03, estado: "Entorno letal" },
+    luna:      { nombre: "Luna",                         nombreCorto: "Luna",      temp: -20.0, pressure: 0.0,  humidity: 0.01, estado: "Vacío, letal" },
+    atacama:   { nombre: "Desierto de Atacama",          nombreCorto: "Atacama",   temp: 25.0,  pressure: 1013, humidity: 5.0,  estado: "Árido extremo" },
+    altura_gt: { nombre: "Altura guatemalteca (2500 m)", nombreCorto: "Altura GT", temp: 8.0,   pressure: 750,  humidity: 55.0, estado: "Frío de altura" }
+  };
+
+  var CULTIVOS = {
+    melon: {
+      nombre: "Melon",
+      nombreCorto: "Melon",
+      areaSuelo_m2: 1.35,
+      areaVertical_m2: 0.45,
+      frutosPorPlanta: 2.5,
+      cicloDias: 90,
+      unidadFruto: "melones",
+      tempOptimaMin_C: 22,
+      tempOptimaMax_C: 35,
+      ledDensidad_W_m2: 150,
+      ledHorasPorDia: 8
+    }
+  };
+
+  // ============================================================
+  // CONSTANTES FISICAS
+  // ============================================================
+  var CP_AIR = 1005.0;
+  var R_GAS = 8.314;
+  var LV_WATER = 2260000.0;
+  var M_AIR = 0.029;
+  var USABLE_FRACTION = 0.60;
+  var DOME_U_VALUE = 1.0;
+  var P_MIN_VACIO = 0.1;
+
+  // ============================================================
+  // FUNCIONES FISICAS
+  // ============================================================
+  function airDensity(pressure_hPa, temp_C){
+    var P_pa = pressure_hPa * 100;
+    var T_k = temp_C + 273.15;
+    return (P_pa * M_AIR) / (R_GAS * T_k);
+  }
+
+  function domeGeometry(diameter_m){
+    var r = diameter_m / 2;
+    return {
+      radius: r,
+      floorArea: Math.PI * r * r,
+      curvedArea: 2 * Math.PI * r * r,
+      volume: (2/3) * Math.PI * Math.pow(r, 3)
+    };
+  }
+
+  function heatingEnergy(tIn, tOut, curvedArea, U, volume, pressure_hPa){
+    var deltaT = tIn - tOut;
+    var lossPower_W = U * curvedArea * deltaT;
+    var rho = airDensity(pressure_hPa, tIn);
+    var mass = rho * volume;
+    var initialEnergy_J = mass * CP_AIR * deltaT;
+    return { lossPower_W: lossPower_W, initialEnergy_J: initialEnergy_J };
+  }
+
+  function pressurizationEnergy(pInitial, pFinal, volume, temp_C){
+    var pMin = Math.max(P_MIN_VACIO, pInitial);
+    if (pFinal <= pMin) return 0;
+    var T_k = temp_C + 273.15;
+    var pFinal_pa = pFinal * 100;
+    var n = (pFinal_pa * volume) / (R_GAS * T_k);
+    return n * R_GAS * T_k * Math.log(pFinal / pMin);
+  }
+
+  function satVaporPressure_kPa(temp_C){
+    return 0.6108 * Math.exp((17.27 * temp_C) / (temp_C + 237.3));
+  }
+
+  function humidificationEnergy(rhInitial, rhFinal, temp_C, pressure_hPa, volume){
+    var P_kPa = pressure_hPa / 10;
+    var es = satVaporPressure_kPa(temp_C);
+    var eInitial = (rhInitial / 100) * es;
+    var eFinal = (rhFinal / 100) * es;
+    var wInitial = 0.622 * eInitial / Math.max(0.001, (P_kPa - eInitial));
+    var wFinal = 0.622 * eFinal / Math.max(0.001, (P_kPa - eFinal));
+    var rhoDry = airDensity(pressure_hPa, temp_C);
+    var massDryAir = rhoDry * volume;
+    var massWater = (wFinal - wInitial) * massDryAir;
+    if (massWater < 0) massWater = 0;
+    return massWater * LV_WATER;
+  }
+
+  function dewPoint(temp_C, rh_pct){
+    var a = 17.27, b = 237.7;
+    var rhSafe = Math.max(0.01, Math.min(100, rh_pct));
+    var alpha = ((a * temp_C) / (b + temp_C)) + Math.log(rhSafe / 100);
+    return (b * alpha) / (a - alpha);
+  }
+
+  function cropYield(floorArea, cultivo){
+    var usableArea = floorArea * USABLE_FRACTION;
+    var plantsSoil = Math.floor(usableArea / cultivo.areaSuelo_m2);
+    var plantsVertical = Math.floor(usableArea / cultivo.areaVertical_m2);
+    return {
+      usableArea: usableArea,
+      plantsSoil: plantsSoil,
+      plantsVertical: plantsVertical,
+      melonsSoil: Math.round(plantsSoil * cultivo.frutosPorPlanta),
+      melonsVertical: Math.round(plantsVertical * cultivo.frutosPorPlanta)
+    };
+  }
+
+  // ============================================================
+  // HELPERS DE UI
+  // ============================================================
+  function readNumber(id, fallback, min){
+    var el = document.getElementById(id);
+    if (!el) return fallback;
+    var v = parseFloat(el.value);
+    if (isNaN(v)) return fallback;
+    if (typeof min === "number" && v < min) return min;
+    return v;
+  }
+
+  function getSelected(key, catalog){
+    var sel = document.getElementById(key);
+    var val = sel ? sel.value : null;
+    return catalog[val] || catalog[Object.keys(catalog)[0]];
+  }
+
+  function setText(id, text){
+    var el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  function setHTML(id, html){
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  }
+
+  // Formatea un delta con el signo correcto (evita mostrar "+-1.8" cuando
+  // el destino ya tiene mas presion/temperatura que el origen, ej. Atacama)
+  function fmtDelta(value, decimals){
+    var v = value.toFixed(decimals);
+    return (value >= 0 ? "+" : "") + v;
+  }
+
+  // ============================================================
+  // MOTOR DE CALCULO
+  // ============================================================
+  function runFullCalc(origen, destino, cultivo, domeDiameter, energyBudget_kW, tariff_Q_kWh, localPrice_Q){
+    var geo = domeGeometry(domeDiameter);
+    var heat = heatingEnergy(origen.temp, destino.temp, geo.curvedArea, DOME_U_VALUE, geo.volume, origen.pressure);
+    var pressWork = pressurizationEnergy(destino.pressure, origen.pressure, geo.volume, origen.temp);
+    var humidEnergy = humidificationEnergy(destino.humidity, origen.humidity, origen.temp, origen.pressure, geo.volume);
+
+    var cycleSeconds = cultivo.cicloDias * 24 * 3600;
+    var pressAvgPower_W = pressWork / cycleSeconds;
+    var humidAvgPower_W = humidEnergy / cycleSeconds;
+    var initialHeatAvgPower_W = heat.initialEnergy_J / cycleSeconds;
+
+    var crop = cropYield(geo.floorArea, cultivo);
+
+    var ledInstantPower_W = cultivo.ledDensidad_W_m2 * crop.usableArea;
+    var ledAvgPower_W = ledInstantPower_W * (cultivo.ledHorasPorDia / 24);
+
+    var heatLoss_W = heat.lossPower_W;
+    var totalPower_W = heatLoss_W + initialHeatAvgPower_W + pressAvgPower_W + humidAvgPower_W + ledAvgPower_W;
+    var totalPower_kW = totalPower_W / 1000;
+
+    var viabilityRaw = (energyBudget_kW / Math.max(0.001, totalPower_kW)) * 100;
+    var viability = Math.min(100, Math.max(0, viabilityRaw));
+    var deficit_kW = Math.max(0, totalPower_kW - energyBudget_kW);
+
+    var kWhPorDia = totalPower_kW * 24;
+    var qPorDia = kWhPorDia * tariff_Q_kWh;
+    var kWhCiclo = kWhPorDia * cultivo.cicloDias;
+    var costoCicloQ = kWhCiclo * tariff_Q_kWh;
+    var costoPorMelonSuelo = costoCicloQ / Math.max(1, crop.melonsSoil);
+    var costoPorMelonVertical = costoCicloQ / Math.max(1, crop.melonsVertical);
+
+    var componentes = [
+      { nombre: "Pérdida de calor continua", W: heatLoss_W },
+      { nombre: "Calentamiento inicial (amort.)", W: initialHeatAvgPower_W },
+      { nombre: "Presurización (amort.)", W: pressAvgPower_W },
+      { nombre: "Humidificación (amort.)", W: humidAvgPower_W },
+      { nombre: "Iluminación LED PAR", W: ledAvgPower_W }
+    ];
+
+    return {
+      origen: origen,
+      destino: destino,
+      cultivo: cultivo,
+      energyBudget_kW: energyBudget_kW,
+      deltas: {
+        temp: origen.temp - destino.temp,
+        pressure: origen.pressure - destino.pressure,
+        humidity: origen.humidity - destino.humidity
+      },
+      dew: dewPoint(origen.temp, origen.humidity),
+      energy: {
+        heatLoss_W: heatLoss_W,
+        initialHeatAvg_W: initialHeatAvgPower_W,
+        pressAvg_W: pressAvgPower_W,
+        humidAvg_W: humidAvgPower_W,
+        ledInstant_W: ledInstantPower_W,
+        ledAvg_W: ledAvgPower_W,
+        total_kW: totalPower_kW,
+        componentes: componentes
+      },
+      viability: viability,
+      viabilityRaw: viabilityRaw,
+      deficit_kW: deficit_kW,
+      crop: crop,
+      cost: {
+        kWhPorDia: kWhPorDia,
+        qPorDia: qPorDia,
+        kWhCiclo: kWhCiclo,
+        costoCicloQ: costoCicloQ,
+        costoPorMelonSuelo: costoPorMelonSuelo,
+        costoPorMelonVertical: costoPorMelonVertical,
+        localPrice_Q: localPrice_Q
+      },
+      tariff_Q_kWh: tariff_Q_kWh
+    };
+  }
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+  function render(result){
+    var r = result;
+    var e = r.energy;
+
+    // Origen
+    setText("originName", r.origen.nombreCorto || r.origen.nombre);
+    setHTML("zTemp", r.origen.temp.toFixed(1) + '<span class="unit">°C</span>');
+    setHTML("zPress", r.origen.pressure.toFixed(1) + '<span class="unit">hPa</span>');
+    setHTML("zHum", r.origen.humidity.toFixed(0) + '<span class="unit">%</span>');
+
+    // Estado del origen segun rango optimo del cultivo
+    var oStatus = document.getElementById("originStatus");
+    if (oStatus){
+      var t = r.origen.temp;
+      if (t >= r.cultivo.tempOptimaMin_C && t <= r.cultivo.tempOptimaMax_C){
+        oStatus.textContent = "Óptimo para " + r.cultivo.nombreCorto;
+        oStatus.className = "value good";
+      } else if (t < r.cultivo.tempOptimaMin_C){
+        oStatus.textContent = "Frío para " + r.cultivo.nombreCorto;
+        oStatus.className = "value warn";
+      } else {
+        oStatus.textContent = "Cálido para " + r.cultivo.nombreCorto;
+        oStatus.className = "value warn";
+      }
+    }
+
+    // Destino
+    setText("destName", r.destino.nombreCorto || r.destino.nombre);
+    setHTML("mTemp", r.destino.temp.toFixed(1) + '<span class="unit">°C</span>');
+    setHTML("mPress", r.destino.pressure.toFixed(1) + '<span class="unit">hPa</span>');
+    setHTML("mHum", r.destino.humidity.toFixed(2) + '<span class="unit">%</span>');
+    setText("destStatus", r.destino.estado || "Entorno hostil");
+
+    // Deltas
+    setHTML("dTemp", fmtDelta(r.deltas.temp, 1) + '<span class="unit">°C</span>');
+    setHTML("dPress", fmtDelta(r.deltas.pressure, 1) + '<span class="unit">hPa</span>');
+    setHTML("dHum", fmtDelta(r.deltas.humidity, 1) + '<span class="unit">%</span>');
+    setHTML("dewPoint", r.dew.toFixed(1) + '<span class="unit">°C</span>');
+
+    // OPEX hero
+    setText("opexDay", "Q" + r.cost.qPorDia.toFixed(2));
+    setText("opexDayKwh", r.cost.kWhPorDia.toFixed(2) + " kWh/día");
+    setText("opexKW", e.total_kW.toFixed(2));
+    setText("opexPerMelon", "Q" + r.cost.costoPorMelonSuelo.toFixed(0));
+    setText("opexPerMelonMult", (r.cost.costoPorMelonSuelo / Math.max(0.01, r.cost.localPrice_Q)).toFixed(0) + "x precio local");
+
+    // Total y barras
+    setText("totalPower", e.total_kW.toFixed(2));
+
+    var maxBar = Math.max(e.heatLoss_W, e.initialHeatAvg_W, e.pressAvg_W, e.humidAvg_W, e.ledAvg_W, 1);
+    var heatBar = document.getElementById("heatBar");
+    var initialBar = document.getElementById("initialBar");
+    var pressBar = document.getElementById("pressBar");
+    var humidBar = document.getElementById("humidBar");
+    var ledBar = document.getElementById("ledBar");
+    // Minimo visual del 2%: evita que un componente pequeno (ej. presurizacion
+    // amortizada) desaparezca por completo de la vista junto a la perdida de calor
+    function barWidth(value){
+      var pct = (value / maxBar) * 100;
+      return Math.max(2, pct) + "%";
+    }
+    if (heatBar) heatBar.style.width = barWidth(e.heatLoss_W);
+    if (initialBar) initialBar.style.width = barWidth(e.initialHeatAvg_W);
+    if (pressBar) pressBar.style.width = barWidth(e.pressAvg_W);
+    if (humidBar) humidBar.style.width = barWidth(e.humidAvg_W);
+    if (ledBar) ledBar.style.width = barWidth(e.ledAvg_W);
+
+    setText("heatLossLabel", e.heatLoss_W.toFixed(1) + " W");
+    setText("initialLabel", e.initialHeatAvg_W.toFixed(2) + " W");
+    setText("pressLabel", e.pressAvg_W.toFixed(2) + " W");
+    setText("humidLabel", e.humidAvg_W.toFixed(2) + " W");
+    setText("ledLabel", e.ledAvg_W.toFixed(1) + " W (prom. " + r.cultivo.ledHorasPorDia + "h/día)");
+
+    // Tabla OPEX
+    var tbody = document.getElementById("opexTableBody");
+    if (tbody){
+      tbody.innerHTML = "";
+      var totalW = 0;
+      for (var i = 0; i < e.componentes.length; i++) totalW += e.componentes[i].W;
+
+      for (var j = 0; j < e.componentes.length; j++){
+        var c = e.componentes[j];
+        var kwhDia = (c.W / 1000) * 24;
+        var qDia = kwhDia * r.tariff_Q_kWh;
+        var pct = totalW > 0 ? (c.W / totalW * 100) : 0;
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td>" + c.nombre + "</td>" +
+          '<td class="num">' + c.W.toFixed(2) + "</td>" +
+          '<td class="num">' + kwhDia.toFixed(3) + "</td>" +
+          '<td class="num">Q' + qDia.toFixed(3) + "</td>" +
+          '<td class="num">' + pct.toFixed(1) + "%</td>";
+        tbody.appendChild(tr);
+      }
+      var trTotal = document.createElement("tr");
+      trTotal.className = "total";
+      trTotal.innerHTML =
+        "<td>Total</td>" +
+        '<td class="num">' + totalW.toFixed(2) + "</td>" +
+        '<td class="num">' + r.cost.kWhPorDia.toFixed(3) + "</td>" +
+        '<td class="num">Q' + r.cost.qPorDia.toFixed(3) + "</td>" +
+        '<td class="num">100%</td>';
+      tbody.appendChild(trTotal);
+    }
+
+    // Gauge
+    var gaugePct = r.viability;
+    var circumference = 283;
+    var offset = circumference - (circumference * gaugePct / 100);
+    var arc = document.getElementById("gaugeArc");
+    var valueEl = document.getElementById("gaugeValue");
+    var statusEl = document.getElementById("gaugeStatus");
+    var deficitEl = document.getElementById("gaugeDeficit");
+
+    if (arc) arc.style.strokeDashoffset = offset;
+
+    if (valueEl && statusEl && deficitEl && arc){
+      if (r.viabilityRaw >= 100){
+        var margen = r.energyBudget_kW - e.total_kW;
+        valueEl.textContent = "+" + margen.toFixed(1) + " kW";
+        valueEl.style.fontSize = "26px";
+        arc.style.stroke = "var(--good)";
+        statusEl.style.background = "rgba(79,214,122,0.15)";
+        statusEl.style.color = "var(--good)";
+        statusEl.textContent = "Biodomo viable";
+        deficitEl.innerHTML = 'Margen: <span class="val good">+' + margen.toFixed(2) + " kW</span>";
+      } else if (r.viabilityRaw >= 80){
+        valueEl.textContent = r.viabilityRaw.toFixed(0) + "%";
+        valueEl.style.fontSize = "34px";
+        arc.style.stroke = "var(--warn)";
+        statusEl.style.background = "rgba(240,166,58,0.15)";
+        statusEl.style.color = "var(--warn)";
+        statusEl.textContent = "Casi viable";
+        deficitEl.innerHTML = 'Déficit: <span class="val">' + r.deficit_kW.toFixed(2) + " kW</span>";
+      } else {
+        valueEl.textContent = r.viabilityRaw.toFixed(0) + "%";
+        valueEl.style.fontSize = "34px";
+        arc.style.stroke = "var(--danger)";
+        statusEl.style.background = "rgba(224,85,63,0.15)";
+        statusEl.style.color = "var(--danger)";
+        statusEl.textContent = "Energía insuficiente";
+        deficitEl.innerHTML = 'Déficit: <span class="val">' + r.deficit_kW.toFixed(2) + " kW</span>";
+      }
+    }
+
+    // Cultivo
+    setText("areaSoil", r.cultivo.areaSuelo_m2 + " m²");
+    setText("areaVertical", r.cultivo.areaVertical_m2 + " m²");
+    setText("plantsSoil", r.crop.plantsSoil);
+    setText("plantsVertical", r.crop.plantsVertical);
+    setText("melonsSoil", r.crop.melonsSoil + " " + r.cultivo.unidadFruto);
+    setText("melonsVertical", r.crop.melonsVertical + " " + r.cultivo.unidadFruto);
+    setHTML("cycleDays", r.cultivo.cicloDias + '<span class="unit">días</span>');
+
+    // Comparativa
+    setText("earthPrice", "Q" + r.cost.localPrice_Q.toFixed(0));
+    setText("marsPriceSoil", "Q" + r.cost.costoPorMelonSuelo.toFixed(0));
+    var multSoil = r.cost.costoPorMelonSuelo / Math.max(0.01, r.cost.localPrice_Q);
+    var multVert = r.cost.costoPorMelonVertical / Math.max(0.01, r.cost.localPrice_Q);
+    setText("multiplierSoil", multSoil.toFixed(0) + "x");
+    setText("multiplierVertical", multVert.toFixed(0) + "x");
+  }
+
+  // ============================================================
+  // ACCIONES
+  // ============================================================
+  var lastResult = null;
+
+  function recalcDemo(){
+    var origen = getSelected("originSelect", ORIGENES);
+    var cultivo = getSelected("cropSelect", CULTIVOS);
+    var destino = getSelected("destSelect", DESTINOS);
+
+    var diameter = readNumber("domeDiameter", 10, 1);
+    var budget = readNumber("energyBudget", 15, 0.1);
+    var tariff = readNumber("tariff", 1.376, 0);
+    var localPrice = readNumber("localPrice", 15, 0.01);
+
+    lastResult = runFullCalc(origen, destino, cultivo, diameter, budget, tariff, localPrice);
+    render(lastResult);
+    updateSatelliteCheck(origen, origen, false);
+  }
+
+  async function connectToESP(){
+    var originKey = document.getElementById("originSelect").value;
+    var originMeta = ORIGENES[originKey] || ORIGENES.zacapa;
+    var ip = document.getElementById("espIp").value.trim();
+    var statusEl = document.getElementById("connStatus");
+    if (!ip){ recalcDemo(); return; }
+
+    // recordar la IP de esta estacion para no tener que retipearla
+    // cada vez que se cambie de origen en la demo
+    if (ORIGENES[originKey]) ORIGENES[originKey].espIp = ip;
+
+    try {
+      var res = await fetch("http://" + ip + "/data", { cache: "no-store" });
+      var data = await res.json();
+
+      var cultivo = getSelected("cropSelect", CULTIVOS);
+      var destino = getSelected("destSelect", DESTINOS);
+
+      var diameter = readNumber("domeDiameter", 10, 1);
+      var budget = readNumber("energyBudget", 15, 0.1);
+      var tariff = readNumber("tariff", 1.376, 0);
+      var localPrice = readNumber("localPrice", 15, 0.01);
+
+      var origenLive = {
+        nombre: originMeta.nombreCorto + " — en vivo (" + ip + ")",
+        nombreCorto: originMeta.nombreCorto + " (vivo)",
+        temp: data.zacapa.temp,
+        pressure: data.zacapa.pressure,
+        humidity: data.zacapa.humidity
+      };
+
+      lastResult = runFullCalc(origenLive, destino, cultivo, diameter, budget, tariff, localPrice);
+      render(lastResult);
+      updateSatelliteCheck(origenLive, originMeta, true);
+
+      if (statusEl){
+        statusEl.textContent = "Conectado a " + originMeta.nombreCorto + " (" + ip + ")";
+        statusEl.className = "conn-status live";
+      }
+    } catch (err){
+      if (statusEl){
+        statusEl.textContent = "No se pudo conectar a " + originMeta.nombreCorto + " - modo demo";
+        statusEl.className = "conn-status demo";
+      }
+      recalcDemo();
+    }
+  }
+
+  function exportReport(){
+    if (!lastResult){ recalcDemo(); }
+    var r = lastResult;
+    if (!r){ alert("No hay datos para exportar"); return; }
+
+    var lines = [];
+    lines.push("REPORTE OPEX - AGRI-OPEX SIMULATOR");
+    lines.push("Fecha: " + new Date().toISOString());
+    lines.push("");
+    lines.push("ORIGEN: " + r.origen.nombre);
+    lines.push("  Temp: " + r.origen.temp + " C");
+    lines.push("  Presion: " + r.origen.pressure + " hPa");
+    lines.push("  Humedad: " + r.origen.humidity + " %");
+    lines.push("");
+    lines.push("DESTINO: " + r.destino.nombre);
+    lines.push("  Temp: " + r.destino.temp + " C");
+    lines.push("  Presion: " + r.destino.pressure + " hPa");
+    lines.push("  Humedad: " + r.destino.humidity + " %");
+    lines.push("");
+    lines.push("CULTIVO: " + r.cultivo.nombre + " (ciclo " + r.cultivo.cicloDias + " días)");
+    lines.push("");
+    lines.push("DESGLOSE OPEX (W promedio / kWh/día / Q/día):");
+    for (var i = 0; i < r.energy.componentes.length; i++){
+      var c = r.energy.componentes[i];
+      var kwhDia = (c.W / 1000) * 24;
+      var qDia = kwhDia * r.tariff_Q_kWh;
+      lines.push("  " + c.nombre + ": " + c.W.toFixed(2) + " W / " + kwhDia.toFixed(3) + " kWh / Q" + qDia.toFixed(3));
+    }
+    lines.push("");
+    lines.push("TOTAL: " + r.energy.total_kW.toFixed(2) + " kW / " + r.cost.kWhPorDia.toFixed(2) + " kWh/día / Q" + r.cost.qPorDia.toFixed(2) + "/día");
+    lines.push("");
+    lines.push("OPEX DEL CICLO (" + r.cultivo.cicloDias + " días): Q" + r.cost.costoCicloQ.toFixed(2));
+    lines.push("Producción suelo: " + r.crop.melonsSoil + " " + r.cultivo.unidadFruto);
+    lines.push("Producción vertical: " + r.crop.melonsVertical + " " + r.cultivo.unidadFruto);
+    lines.push("OPEX por fruto (suelo): Q" + r.cost.costoPorMelonSuelo.toFixed(2));
+    lines.push("OPEX por fruto (vertical): Q" + r.cost.costoPorMelonVertical.toFixed(2));
+    lines.push("Precio local: Q" + r.cost.localPrice_Q.toFixed(2));
+    lines.push("Multiplicador suelo: " + (r.cost.costoPorMelonSuelo / Math.max(0.01, r.cost.localPrice_Q)).toFixed(1) + "x");
+    lines.push("Multiplicador vertical: " + (r.cost.costoPorMelonVertical / Math.max(0.01, r.cost.localPrice_Q)).toFixed(1) + "x");
+
+    var blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "reporte_opex_" + Date.now() + ".txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ============================================================
+  // VALIDACION CRUZADA: ESTACION (BME280) vs. NASA POWER
+  // ============================================================
+  // NASA POWER (API publica, sin llave): promedios diarios de una celda
+  // de ~50 km, con unos dias de retraso. Se consultan los ultimos 14 dias
+  // y se promedian los ultimos 7 validos (-999 = dato faltante).
+  // La humedad de suelo (GWETTOP) es un producto de modelo (MERRA-2),
+  // no SMAP directo: SMAP requiere cuenta Earthdata y no tiene API JSON abierta.
+  var POWER_BASE = "https://power.larc.nasa.gov/api/temporal/daily/point";
+  var POWER_PARAMS = ["ALLSKY_SFC_SW_DWN", "T2M", "T2M_MAX", "T2M_MIN", "RH2M", "PS", "GWETTOP"];
+  var POWER_DIAS = 14;
+  var POWER_PROMEDIO_DIAS = 7;
+  var POWER_CACHE_MS = 60 * 60 * 1000;
+  var satCache = {};
+  var satToken = 0;
+
+  // ---- SAT-PURE-BEGIN (funciones puras, sin DOM ni red)
+  function pad2(n){ return (n < 10 ? "0" : "") + n; }
+
+  function ymdUTC(d){
+    return d.getUTCFullYear() + pad2(d.getUTCMonth() + 1) + pad2(d.getUTCDate());
+  }
+
+  function fmtYMD(s){
+    return s.slice(6, 8) + "/" + s.slice(4, 6) + "/" + s.slice(0, 4);
+  }
+
+  // Resume la respuesta JSON de POWER: promedio de los ultimos nDias validos por parametro
+  function summarizePower(json, nDias){
+    var par = json && json.properties && json.properties.parameter;
+    if (!par) return null;
+    var out = {};
+    Object.keys(par).forEach(function(name){
+      var serie = par[name];
+      var fechas = Object.keys(serie).sort();
+      var vals = [];
+      for (var i = 0; i < fechas.length; i++){
+        var v = serie[fechas[i]];
+        if (typeof v === "number" && v > -900) vals.push({ f: fechas[i], v: v });
+      }
+      if (!vals.length) return;
+      var ult = vals.slice(-nDias);
+      var sum = 0;
+      for (var k = 0; k < ult.length; k++) sum += ult[k].v;
+      out[name] = { mean: sum / ult.length, n: ult.length, lastDate: vals[vals.length - 1].f };
+    });
+    return Object.keys(out).length ? out : null;
+  }
+
+  function scoreTolerance(absDiff, tol){
+    return Math.max(0, 1 - absDiff / tol);
+  }
+
+  // Compara la lectura de la estacion con el resumen satelital.
+  // Devuelve filas por variable y un indice global ponderado (0-100).
+  function crossCheck(est, sat){
+    var items = [];
+
+    if (sat.T2M){
+      var tSat = sat.T2M.mean;
+      var distTemp;
+      var nota = "";
+      if (sat.T2M_MIN && sat.T2M_MAX){
+        var lo = sat.T2M_MIN.mean, hi = sat.T2M_MAX.mean;
+        distTemp = est.temp < lo ? (lo - est.temp) : (est.temp > hi ? (est.temp - hi) : 0);
+        nota = "rango sat. " + lo.toFixed(1) + "–" + hi.toFixed(1) + " °C";
+      } else {
+        distTemp = Math.abs(est.temp - tSat);
+      }
+      items.push({ nombre: "Temperatura", unidad: "°C", dec: 1, est: est.temp, sat: tSat, diff: est.temp - tSat, score: scoreTolerance(distTemp, 5), peso: 0.4, nota: nota });
+    }
+
+    if (sat.RH2M){
+      var dRH = est.humidity - sat.RH2M.mean;
+      items.push({ nombre: "Humedad relativa", unidad: "%", dec: 0, est: est.humidity, sat: sat.RH2M.mean, diff: dRH, score: scoreTolerance(Math.abs(dRH), 25), peso: 0.3, nota: "" });
+    }
+
+    if (sat.PS){
+      var pSat = sat.PS.mean * 10; // kPa -> hPa
+      var dP = est.pressure - pSat;
+      items.push({ nombre: "Presión", unidad: "hPa", dec: 1, est: est.pressure, sat: pSat, diff: dP, score: scoreTolerance(Math.abs(dP), 10), peso: 0.3, nota: "depende de la elevación media de la celda" });
+    }
+
+    var pesoTotal = 0, acum = 0;
+    for (var i = 0; i < items.length; i++){
+      pesoTotal += items[i].peso;
+      acum += items[i].score * items[i].peso;
+    }
+    var indice = pesoTotal > 0 ? (acum / pesoTotal) * 100 : null;
+    return { items: items, indice: indice };
+  }
+
+  function nivelConcordancia(score01){
+    if (score01 >= 0.8) return "good";
+    if (score01 >= 0.6) return "warn";
+    return "bad";
+  }
+
+  function textoNivel(indice){
+    if (indice >= 80) return "Alta: el sensor y el satélite coinciden";
+    if (indice >= 60) return "Media: revisar ubicación o calibración";
+    return "Baja: revisar sensor, sitio o conexión";
+  }
+
+  function estadoSuelo(frac){
+    // Umbrales referenciales (no calibrados para un suelo especifico)
+    if (frac < 0.25) return "Seco · posible estrés hídrico";
+    if (frac < 0.5) return "Moderado";
+    return "Húmedo";
+  }
+  // ---- SAT-PURE-END
+
+  async function fetchPower(meta){
+    var key = meta.lat + "," + meta.lon;
+    var c = satCache[key];
+    if (c && (Date.now() - c.t) < POWER_CACHE_MS) return c.data;
+
+    var fin = new Date();
+    var ini = new Date(fin.getTime() - POWER_DIAS * 86400000);
+    var url = POWER_BASE +
+      "?parameters=" + POWER_PARAMS.join(",") +
+      "&community=AG" +
+      "&longitude=" + meta.lon +
+      "&latitude=" + meta.lat +
+      "&start=" + ymdUTC(ini) +
+      "&end=" + ymdUTC(fin) +
+      "&format=JSON";
+
+    var ctrl = new AbortController();
+    var to = setTimeout(function(){ ctrl.abort(); }, 15000);
+    try {
+      var res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      var json = await res.json();
+      var sum = summarizePower(json, POWER_PROMEDIO_DIAS);
+      if (!sum) throw new Error("Respuesta sin datos válidos");
+      satCache[key] = { t: Date.now(), data: sum };
+      return sum;
+    } finally {
+      clearTimeout(to);
+    }
+  }
+
+  function renderSatellite(est, sat, live){
+    var cc = crossCheck(est, sat);
+
+    var ultima = null;
+    Object.keys(sat).forEach(function(k){
+      if (!ultima || sat[k].lastDate > ultima) ultima = sat[k].lastDate;
+    });
+    setText("satStatus", "NASA POWER · último dato " + (ultima ? fmtYMD(ultima) : "—") +
+      (live ? " · estación en vivo" : " · estación: valores de referencia (demo)"));
+
+    // Indice global
+    var scoreEl = document.getElementById("satScore");
+    if (cc.indice === null){
+      setText("satScore", "—");
+      setText("satScoreLabel", "sin variables comparables");
+    } else if (scoreEl){
+      scoreEl.textContent = cc.indice.toFixed(0) + "%";
+      scoreEl.className = "num " + nivelConcordancia(cc.indice / 100);
+      setText("satScoreLabel", live
+        ? textoNivel(cc.indice)
+        : "Referencia (demo). Conecta el ESP32 para una validación real");
+    }
+
+    // Insolacion
+    if (sat.ALLSKY_SFC_SW_DWN){
+      setText("satSolar", sat.ALLSKY_SFC_SW_DWN.mean.toFixed(2));
+    } else {
+      setText("satSolar", "—");
+    }
+
+    // Suelo
+    if (sat.GWETTOP){
+      var frac = sat.GWETTOP.mean;
+      setText("satSoil", (frac * 100).toFixed(0) + "%");
+      setText("satSoilLabel", estadoSuelo(frac) + " (GWETTOP)");
+    } else {
+      setText("satSoil", "—");
+      setText("satSoilLabel", "sin dato de suelo");
+    }
+
+    // Tabla
+    var tbody = document.getElementById("satTableBody");
+    if (tbody){
+      tbody.innerHTML = "";
+      for (var i = 0; i < cc.items.length; i++){
+        var it = cc.items[i];
+        var cls = nivelConcordancia(it.score);
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td>" + it.nombre + (it.nota ? '<span class="sat-sub">' + it.nota + "</span>" : "") + "</td>" +
+          '<td class="num">' + it.est.toFixed(it.dec) + " " + it.unidad + "</td>" +
+          '<td class="num">' + it.sat.toFixed(it.dec) + " " + it.unidad + "</td>" +
+          '<td class="num">' + fmtDelta(it.diff, it.dec) + " " + it.unidad + "</td>" +
+          '<td class="num ' + cls + '">' + (it.score * 100).toFixed(0) + "%</td>";
+        tbody.appendChild(tr);
+      }
+    }
+  }
+
+  function renderSatelliteError(msg){
+    setText("satStatus", "NASA POWER no disponible");
+    setText("satScore", "—");
+    setText("satScoreLabel", "sin conexión con el satélite: " + msg);
+    setText("satSolar", "—");
+    setText("satSoil", "—");
+    setText("satSoilLabel", "sin dato de suelo");
+    var tbody = document.getElementById("satTableBody");
+    if (tbody) tbody.innerHTML = "";
+  }
+
+  // est: lectura de la estacion {temp, pressure, humidity}; meta: origen con lat/lon;
+  // live: true si la lectura viene del ESP32 (false = valores de referencia del catalogo)
+  async function updateSatelliteCheck(est, meta, live){
+    var mi = ++satToken;
+    setText("satStatus", "Consultando NASA POWER…");
+    if (!meta || typeof meta.lat !== "number" || typeof meta.lon !== "number"){
+      renderSatelliteError("el origen no tiene coordenadas");
+      return;
+    }
+    try {
+      var sat = await fetchPower(meta);
+      if (mi !== satToken) return; // llego una consulta mas reciente
+      renderSatellite(est, sat, live);
+    } catch (err){
+      if (mi !== satToken) return;
+      renderSatelliteError(err && err.message ? err.message : "error de red");
+    }
+  }
+
+  // ============================================================
+  // INICIALIZACION
+  // ============================================================
+  (function init(){
+    var cropAndDest = ["cropSelect", "destSelect"];
+    for (var i = 0; i < cropAndDest.length; i++){
+      var el = document.getElementById(cropAndDest[i]);
+      if (el) el.addEventListener("change", recalcDemo);
+    }
+
+    // El selector de origen ademas rellena el campo de IP con la que se
+    // guardo la ultima vez para esa estacion (si ya se conecto antes)
+    var originSelectEl = document.getElementById("originSelect");
+    if (originSelectEl){
+      originSelectEl.addEventListener("change", function(){
+        var key = originSelectEl.value;
+        var meta = ORIGENES[key];
+        var ipInput = document.getElementById("espIp");
+        if (ipInput) ipInput.value = (meta && meta.espIp) ? meta.espIp : "";
+        recalcDemo();
+      });
+    }
+
+    recalcDemo();
+  })();
+</script>
+
+</body>
+</html>
