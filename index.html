@@ -289,7 +289,7 @@
     <strong>Cómo leerlo:</strong> el índice es una medida heurística de qué tan cerca está tu sensor del dato satelital
     (tolerancias: temperatura dentro del rango diario del satélite ±5 °C, humedad ±25 puntos, presión ±10 hPa). No es una probabilidad estadística.
     La estación mide en un instante; NASA POWER entrega promedios diarios de una celda de ~50 km con unos días de retraso.
-    La humedad de suelo viene de POWER (modelo MERRA-2), no de SMAP directamente.
+    La humedad de suelo viene de POWER (modelo MERRA-2), no de SMAP directamente. La presión de la estación reportada a nivel del mar se ajusta a presión de superficie y se compara con NASA POWER corregida por elevación.
   </div>
 </div>
 
@@ -421,17 +421,11 @@
     // lat/lon/elev tomados de datos reales de Weather Underground (WU)
     // de cada estacion. Se usan para consultar NASA POWER (satelite) como
     // validacion cruzada del dato leido por el sensor local.
-    // Gualan (Zacapa): 15.11N, 89.36W, elev 403m -- la presion (1011.2 hPa)
-    // es lectura real del BME280, no se recalcula por elevacion.
-    zacapa: { nombre: "Gualán, Zacapa", nombreCorto: "Gualán", temp: 32.5, pressure: 1011.2, humidity: 62.0, espIp: "", lat: 15.11, lon: -89.36, elev_m: 403 },
-    // Coban: 15.47N, 90.37W, elev 1320m. Presion de referencia recalculada
-    // con formula barometrica estandar segun la elevacion real (864.4 hPa)
-    // -- se sobreescribe con el dato real del BME280 al conectar por WiFi.
+    // Gualan (Zacapa): 15.11N, 89.36W, elev 155m
+    zacapa: { nombre: "Gualán, Zacapa", nombreCorto: "Gualán", temp: 32.5, pressure: 1011.2, humidity: 62.0, espIp: "", lat: 15.11, lon: -89.36, elev_m: 155 },
+    // Coban: 15.47N, 90.37W, elev 1320m.
     coban: { nombre: "Cobán, Alta Verapaz", nombreCorto: "Cobán", temp: 20.5, pressure: 864.4, humidity: 85.0, espIp: "", lat: 15.47, lon: -90.37, elev_m: 1320 },
-    // Teocinte, Santa Rosa: 14.41N, 90.38W, elev 1242m. A esta altitud el
-    // clima es mas fresco que tierra baja de Santa Rosa -- temperatura y
-    // presion de referencia ajustadas acorde (872.7 hPa por formula
-    // barometrica); se sobreescriben con el dato real del BME280 al conectar.
+    // Teocinte, Santa Rosa: 14.41N, 90.38W, elev 1242m.
     teocinte_sr: { nombre: "Teocinte, Santa Rosa", nombreCorto: "Teocinte SR", temp: 19.5, pressure: 872.7, humidity: 78.0, espIp: "", lat: 14.41, lon: -90.38, elev_m: 1242 }
   };
 
@@ -572,8 +566,6 @@
     if (el) el.innerHTML = html;
   }
 
-  // Formatea un delta con el signo correcto (evita mostrar "+-1.8" cuando
-  // el destino ya tiene mas presion/temperatura que el origen, ej. Atacama)
   function fmtDelta(value, decimals){
     var v = value.toFixed(decimals);
     return (value >= 0 ? "+" : "") + v;
@@ -717,8 +709,7 @@
     var pressBar = document.getElementById("pressBar");
     var humidBar = document.getElementById("humidBar");
     var ledBar = document.getElementById("ledBar");
-    // Minimo visual del 2%: evita que un componente pequeno (ej. presurizacion
-    // amortizada) desaparezca por completo de la vista junto a la perdida de calor
+
     function barWidth(value){
       var pct = (value / maxBar) * 100;
       return Math.max(2, pct) + "%";
@@ -844,6 +835,7 @@
     render(lastResult);
     updateSatelliteCheck(origen, origen, false);
   }
+
 // ============================================================
 // CONEXIÓN A THINGSPEAK - Estación Gualán (Canal 3225843)
 // ============================================================
@@ -913,8 +905,6 @@ async function connectToThingSpeak() {
     var statusEl = document.getElementById("connStatus");
     if (!ip){ recalcDemo(); return; }
 
-    // recordar la IP de esta estacion para no tener que retipearla
-    // cada vez que se cambie de origen en la demo
     if (ORIGENES[originKey]) ORIGENES[originKey].espIp = ip;
 
     try {
@@ -934,7 +924,10 @@ async function connectToThingSpeak() {
         nombreCorto: originMeta.nombreCorto + " (vivo)",
         temp: data.zacapa.temp,
         pressure: data.zacapa.pressure,
-        humidity: data.zacapa.humidity
+        humidity: data.zacapa.humidity,
+        lat: originMeta.lat,
+        lon: originMeta.lon,
+        elev_m: originMeta.elev_m
       };
 
       lastResult = runFullCalc(origenLive, destino, cultivo, diameter, budget, tariff, localPrice);
@@ -1006,11 +999,6 @@ async function connectToThingSpeak() {
   // ============================================================
   // VALIDACION CRUZADA: ESTACION (BME280) vs. NASA POWER
   // ============================================================
-  // NASA POWER (API publica, sin llave): promedios diarios de una celda
-  // de ~50 km, con unos dias de retraso. Se consultan los ultimos 14 dias
-  // y se promedian los ultimos 7 validos (-999 = dato faltante).
-  // La humedad de suelo (GWETTOP) es un producto de modelo (MERRA-2),
-  // no SMAP directo: SMAP requiere cuenta Earthdata y no tiene API JSON abierta.
   var POWER_BASE = "https://power.larc.nasa.gov/api/temporal/daily/point";
   var POWER_PARAMS = ["ALLSKY_SFC_SW_DWN", "T2M", "T2M_MAX", "T2M_MIN", "RH2M", "PS", "GWETTOP"];
   var POWER_DIAS = 14;
@@ -1019,7 +1007,6 @@ async function connectToThingSpeak() {
   var satCache = {};
   var satToken = 0;
 
-  // ---- SAT-PURE-BEGIN (funciones puras, sin DOM ni red)
   function pad2(n){ return (n < 10 ? "0" : "") + n; }
 
   function ymdUTC(d){
@@ -1030,7 +1017,6 @@ async function connectToThingSpeak() {
     return s.slice(6, 8) + "/" + s.slice(4, 6) + "/" + s.slice(0, 4);
   }
 
-  // Resume la respuesta JSON de POWER: promedio de los ultimos nDias validos por parametro
   function summarizePower(json, nDias){
     var par = json && json.properties && json.properties.parameter;
     if (!par) return null;
@@ -1056,8 +1042,7 @@ async function connectToThingSpeak() {
     return Math.max(0, 1 - absDiff / tol);
   }
 
-  // Compara la lectura de la estacion con el resumen satelital.
-  // Devuelve filas por variable y un indice global ponderado (0-100).
+  // Compara la lectura de la estacion con el resumen satelital con ajuste barometrico de elevacion
   function crossCheck(est, sat){
     var items = [];
 
@@ -1081,9 +1066,36 @@ async function connectToThingSpeak() {
     }
 
     if (sat.PS){
-      var pSat = sat.PS.mean * 10; // kPa -> hPa
-      var dP = est.pressure - pSat;
-      items.push({ nombre: "Presión", unidad: "hPa", dec: 1, est: est.pressure, sat: pSat, diff: dP, score: scoreTolerance(Math.abs(dP), 10), peso: 0.3, nota: "depende de la elevación media de la celda" });
+      // 1. Elevación de la estación (por defecto 155 m para Gualán si no viene definida)
+      var elevEst = (est && typeof est.elev_m === "number") ? est.elev_m : 155;
+      
+      // 2. Convertir presión reducida SNM de la estación a presión real de superficie con la fórmula hipsométrica
+      var tEst = (typeof est.temp === "number") ? est.temp : 25;
+      var pEstSfc = est.pressure * Math.pow(1 - (0.0065 * elevEst) / (tEst + 0.0065 * elevEst + 273.15), 5.257);
+      
+      // 3. Presión cruda de NASA POWER (kPa -> hPa)
+      var pSatRaw = sat.PS.mean * 10;
+      
+      // 4. Ajustar la presión de la celda de NASA POWER (elevación media ~762 m) a la elevación de la estación
+      var elevPower = 762.46;
+      var dz = elevEst - elevPower; // -607.46 m
+      var tSat = (sat.T2M ? sat.T2M.mean : 23.3);
+      var pSatAdj = pSatRaw * Math.exp(-0.034163 * dz / (tSat + 273.15));
+
+      // 5. Diferencia real entre la superficie medida y el modelo ajustado
+      var dP = pEstSfc - pSatAdj;
+
+      items.push({ 
+        nombre: "Presión", 
+        unidad: "hPa", 
+        dec: 1, 
+        est: pEstSfc, 
+        sat: pSatAdj, 
+        diff: dP, 
+        score: scoreTolerance(Math.abs(dP), 10), 
+        peso: 0.3, 
+        nota: "convertida a superficie y ajustada por elevación (" + elevEst + " m)" 
+      });
     }
 
     var pesoTotal = 0, acum = 0;
@@ -1108,12 +1120,10 @@ async function connectToThingSpeak() {
   }
 
   function estadoSuelo(frac){
-    // Umbrales referenciales (no calibrados para un suelo especifico)
     if (frac < 0.25) return "Seco · posible estrés hídrico";
     if (frac < 0.5) return "Moderado";
     return "Húmedo";
   }
-  // ---- SAT-PURE-END
 
   async function fetchPower(meta){
     var key = meta.lat + "," + meta.lon;
@@ -1156,7 +1166,6 @@ async function connectToThingSpeak() {
     setText("satStatus", "NASA POWER · último dato " + (ultima ? fmtYMD(ultima) : "—") +
       (live ? " · estación en vivo" : " · estación: valores de referencia (demo)"));
 
-    // Indice global
     var scoreEl = document.getElementById("satScore");
     if (cc.indice === null){
       setText("satScore", "—");
@@ -1169,14 +1178,12 @@ async function connectToThingSpeak() {
         : "Referencia (demo). Conecta el ESP32 para una validación real");
     }
 
-    // Insolacion
     if (sat.ALLSKY_SFC_SW_DWN){
       setText("satSolar", sat.ALLSKY_SFC_SW_DWN.mean.toFixed(2));
     } else {
       setText("satSolar", "—");
     }
 
-    // Suelo
     if (sat.GWETTOP){
       var frac = sat.GWETTOP.mean;
       setText("satSoil", (frac * 100).toFixed(0) + "%");
@@ -1186,7 +1193,6 @@ async function connectToThingSpeak() {
       setText("satSoilLabel", "sin dato de suelo");
     }
 
-    // Tabla
     var tbody = document.getElementById("satTableBody");
     if (tbody){
       tbody.innerHTML = "";
@@ -1216,8 +1222,6 @@ async function connectToThingSpeak() {
     if (tbody) tbody.innerHTML = "";
   }
 
-  // est: lectura de la estacion {temp, pressure, humidity}; meta: origen con lat/lon;
-  // live: true si la lectura viene del ESP32 (false = valores de referencia del catalogo)
   async function updateSatelliteCheck(est, meta, live){
     var mi = ++satToken;
     setText("satStatus", "Consultando NASA POWER…");
@@ -1227,7 +1231,7 @@ async function connectToThingSpeak() {
     }
     try {
       var sat = await fetchPower(meta);
-      if (mi !== satToken) return; // llego una consulta mas reciente
+      if (mi !== satToken) return;
       renderSatellite(est, sat, live);
     } catch (err){
       if (mi !== satToken) return;
@@ -1245,8 +1249,6 @@ async function connectToThingSpeak() {
       if (el) el.addEventListener("change", recalcDemo);
     }
 
-    // El selector de origen ademas rellena el campo de IP con la que se
-    // guardo la ultima vez para esa estacion (si ya se conecto antes)
     var originSelectEl = document.getElementById("originSelect");
     if (originSelectEl){
       originSelectEl.addEventListener("change", function(){
