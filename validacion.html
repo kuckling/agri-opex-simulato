@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Validación EBC vs. NASA POWER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e14; --panel:#11161f; --panel-border:#1e2530;
+    --text:#e7ecf3; --text-dim:#8b95a5;
+    --zacapa:#4fd67a; --amber:#f0a63a; --cyan:#46c2c9; --danger:#e0553f;
+    --good:#4fd67a; --warn:#f0a63a;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background: radial-gradient(1200px 600px at 15% -10%, #131b28 0%, var(--bg) 55%);
+    color:var(--text); font-family:'Inter',sans-serif; padding:40px 32px 80px;
+  }
+  header{ display:flex; align-items:baseline; gap:14px; margin-bottom:8px; flex-wrap:wrap; }
+  header .icon{ font-size:30px; }
+  h1{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:28px; margin:0; letter-spacing:-0.01em; }
+  .subtitle{ color:var(--text-dim); font-size:14px; margin:0 0 22px; max-width:900px; line-height:1.5; }
+  .scope-note{
+    background:rgba(70,194,201,0.08); border:1px solid rgba(70,194,201,0.25);
+    border-radius:8px; padding:10px 14px; font-size:12.5px; color:var(--text-dim);
+    margin-bottom:20px; line-height:1.55;
+  }
+  .scope-note strong{ color:var(--cyan); }
+  .scope-note.err{ border-color:rgba(224,85,63,0.4); background:rgba(224,85,63,0.08); }
+  .scope-note.err strong{ color:var(--danger); }
+  .grid{ display:grid; gap:18px; margin-bottom:18px; }
+  .grid.two{ grid-template-columns:1fr 1fr; }
+  .grid.three{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+  @media (max-width:900px){ .grid.two, .grid.three{ grid-template-columns:1fr; } }
+  .card{ background:var(--panel); border:1px solid var(--panel-border); border-radius:12px; padding:22px 24px; }
+  .card.accent-zacapa{ border-color:rgba(79,214,122,0.35); }
+  .card.accent-cyan{ border-color:rgba(70,194,201,0.4); }
+  .card-title{
+    display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;
+    font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:15px;
+    margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--panel-border);
+  }
+  .card-title .right{ font-size:12px; color:var(--text-dim); font-weight:400; }
+  .controls{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:20px; font-size:13px; color:var(--text-dim); }
+  .controls select{
+    background:#0d1219; border:1px solid var(--panel-border); color:var(--text);
+    padding:7px 10px; border-radius:7px; font-family:'JetBrains Mono',monospace; font-size:13px;
+  }
+  .controls label{ display:flex; align-items:center; gap:6px; }
+  .controls button{
+    background:var(--cyan); color:#06222a; border:none; font-weight:700; font-size:13px;
+    padding:8px 16px; border-radius:7px; cursor:pointer; font-family:'Inter',sans-serif;
+  }
+  .controls button:hover{ opacity:0.88; }
+  .controls button.secondary{ background:transparent; color:var(--text); border:1px solid var(--panel-border); }
+  .controls button.secondary:hover{ background:#1a212c; }
+  .pill{ font-size:12px; padding:6px 12px; border-radius:20px; background:#1a212c; color:var(--text-dim); }
+  .pill.ok{ color:var(--good); }
+  .pill.warn{ color:var(--warn); }
+  .pill.bad{ color:var(--danger); }
+  .row{ display:flex; justify-content:space-between; align-items:baseline; font-size:14px; color:var(--text-dim); padding:5px 0; }
+  .row .value{ color:var(--text); font-family:'JetBrains Mono',monospace; font-weight:700; font-size:15px; }
+  .row .unit{ font-family:'Inter',sans-serif; font-weight:400; font-size:12px; color:var(--text-dim); margin-left:3px; }
+  .row .value.warn{ color:var(--warn); }
+  .row .value.good{ color:var(--good); }
+  .table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:4px; }
+  .table th{
+    text-align:left; color:var(--text-dim); font-weight:500; font-size:11.5px;
+    text-transform:uppercase; letter-spacing:0.05em; padding:8px 6px; border-bottom:1px solid var(--panel-border);
+  }
+  .table th.num, .table td.num{ text-align:right; }
+  .table td{ padding:8px 6px; border-bottom:1px solid rgba(30,37,48,0.6); font-family:'JetBrains Mono',monospace; font-size:12.5px; }
+  .table td:first-child{ font-family:'Inter',sans-serif; color:var(--text-dim); }
+  .chart svg{ width:100%; height:auto; display:block; }
+  .chart .grid-line{ stroke:#1e2530; stroke-width:1; }
+  .chart .axis{ fill:var(--text-dim); font-size:11px; font-family:'JetBrains Mono',monospace; }
+  .chart .s-est{ stroke:var(--zacapa); fill:none; stroke-width:1.8; }
+  .chart .s-sat{ stroke:var(--cyan); fill:none; stroke-width:1.8; }
+  .chart .p-est{ fill:var(--zacapa); }
+  .chart .p-sat{ fill:var(--cyan); }
+  .chart .legend{ fill:var(--text-dim); font-size:11px; font-family:'Inter',sans-serif; }
+  .chart-empty{ color:var(--text-dim); font-size:13px; padding:30px 0; text-align:center; }
+  .small-note{ font-size:12px; color:var(--text-dim); line-height:1.55; margin-top:10px; }
+  .small-note strong{ color:var(--cyan); }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="icon">🛰️</span>
+  <h1>Validación EBC vs. NASA POWER</h1>
+</header>
+<p class="subtitle" id="subtitle">Comparación de promedios diarios de la estación EBC contra los de NASA POWER (reanálisis MERRA-2), con métricas de error y exportación de datos.</p>
+
+<div class="scope-note err" id="errBanner" style="display:none;"></div>
+
+<div class="scope-note">
+  <strong>Método:</strong> la estación se promedia por hora y luego por día local (UTC−6); se aceptan solo los días con suficientes horas de datos.
+  NASA POWER entrega promedios diarios de una celda de unos 50 km, con unos días de retraso, así que solo se comparan los días en que existen ambas fuentes.
+  Sesgo = estación − NASA POWER.
+</div>
+
+<div class="controls">
+  <label>Ventana:
+    <select id="winSelect">
+      <option value="30" selected>30 días</option>
+      <option value="60">60 días</option>
+      <option value="90">90 días</option>
+      <option value="180">180 días</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="adjChk" checked> Ajustar NASA POWER por elevación</label>
+  <button id="btnRefresh">Actualizar ahora</button>
+  <button id="btnCsv" class="secondary">Exportar CSV</button>
+  <span class="pill" id="stStation">Estación: —</span>
+  <span class="pill" id="stPower">NASA POWER: —</span>
+</div>
+
+<div class="grid two">
+  <div class="card accent-zacapa">
+    <div class="card-title">
+      <span>📍 Última lectura de la estación</span>
+      <span class="right" id="lastName">—</span>
+    </div>
+    <div class="row">Temperatura <span class="value" id="lastTemp">—</span></div>
+    <div class="row">Humedad <span class="value" id="lastHum">—</span></div>
+    <div class="row">Presión (reportada) <span class="value" id="lastPres">—</span></div>
+    <div class="row">Presión de superficie (calculada) <span class="value" id="lastPresSfc">—</span></div>
+    <div class="row">Antigüedad <span class="value" id="lastAge">—</span></div>
+  </div>
+
+  <div class="card accent-cyan">
+    <div class="card-title"><span>📊 Métricas de error</span><span class="right" id="metricsInfo">—</span></div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Variable</th>
+          <th class="num">Días</th>
+          <th class="num">Sesgo</th>
+          <th class="num">MAE</th>
+          <th class="num">RMSE</th>
+          <th class="num">r</th>
+        </tr>
+      </thead>
+      <tbody id="metricsBody"></tbody>
+    </table>
+    <div class="small-note" id="adjNote"></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card chart"><div class="card-title"><span>🌡️ Temperatura diaria</span><span class="right">°C</span></div><div id="chartTemp"></div></div>
+  <div class="card chart"><div class="card-title"><span>💧 Humedad relativa diaria</span><span class="right">%</span></div><div id="chartHum"></div></div>
+  <div class="card chart"><div class="card-title"><span>⏱️ Presión diaria (superficie)</span><span class="right">hPa</span></div><div id="chartPres"></div></div>
+</div>
+
+<div class="scope-note" id="notes">
+  <strong>Limitaciones a declarar en el artículo:</strong>
+  (1) los datos de temperatura, humedad y presión de NASA POWER vienen de un reanálisis (MERRA-2), no de una medición satelital directa;
+  (2) la estación mide en un punto y POWER promedia una celda, por lo que parte de la diferencia es representatividad espacial;
+  (3) la presión de la estación se reporta a nivel del mar y se convierte a presión de superficie con la altitud del sitio (si el método no coincide con el del firmware, aparece un sesgo constante); el ajuste de POWER por elevación usa un gradiente estándar de 6.5 °C/km y la fórmula barométrica, y la humedad no se ajusta;
+  (4) los datos recientes de POWER pueden revisarse después, por eso el CSV incluye la fecha de descarga;
+  (5) POWER define sus días en tiempo solar local; para Gualán (longitud −89.4°) la diferencia con la hora civil de Guatemala es de pocos minutos.
+</div>
+
+<script src="config.js"></script>
+<script>
+  // ============================================================
+  // FUNCIONES PURAS (sin DOM ni red)
+  // ============================================================
+  // ---- PURE-BEGIN
+  var MS_H = 3600000;
+  var VARS = ["temp", "hum", "pres"];
+  var LIMITES = { temp: [-10, 60], hum: [0, 100], pres: [600, 1100] };
+
+  function localDayKey(date, offsetH){
+    return new Date(date.getTime() + offsetH * MS_H).toISOString().slice(0, 10);
+  }
+  function keyToPower(k){ return k.replace(/-/g, ""); }
+  function powerToKey(s){ return s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8); }
+  function inRange(v, lo, hi){ return typeof v === "number" && isFinite(v) && v >= lo && v <= hi; }
+  function fmt(v, d){ return (v === null || v === undefined || !isFinite(v)) ? "—" : v.toFixed(d); }
+  function fmtSigned(v, d){ return (v === null || v === undefined || !isFinite(v)) ? "—" : ((v >= 0 ? "+" : "") + v.toFixed(d)); }
+
+  // Convierte la respuesta de ThingSpeak en entradas {t, temp, hum, pres}; descarta valores fuera de rango fisico
+  function parseThingSpeakFeeds(json, campos){
+    var feeds = (json && json.feeds) || [];
+    var entries = [];
+    var descartados = 0;
+    var mapa = [["temp", "temp"], ["hum", "humedad"], ["pres", "presion"]];
+    for (var i = 0; i < feeds.length; i++){
+      var f = feeds[i];
+      var t = new Date(f.created_at);
+      if (isNaN(t.getTime())) continue;
+      var e = { t: t, temp: null, hum: null, pres: null };
+      for (var m = 0; m < mapa.length; m++){
+        var raw = f[campos[mapa[m][1]]];
+        if (raw === null || raw === undefined || raw === "") continue;
+        var v = parseFloat(raw);
+        var lim = LIMITES[mapa[m][0]];
+        if (inRange(v, lim[0], lim[1])) e[mapa[m][0]] = v; else descartados++;
+      }
+      entries.push(e);
+    }
+    return { entries: entries, descartados: descartados };
+  }
+
+  // Promedio por dia local. Un dia solo vale si tiene al menos minHoras entradas con dato.
+  // Se excluye el dia en curso (incompleto).
+  function aggregateDaily(entries, offsetH, minHoras, excluirKey){
+    var g = {};
+    for (var i = 0; i < entries.length; i++){
+      var e = entries[i];
+      var k = localDayKey(e.t, offsetH);
+      if (k === excluirKey) continue;
+      if (!g[k]) g[k] = { temp: [0, 0], hum: [0, 0], pres: [0, 0] };
+      for (var v = 0; v < VARS.length; v++){
+        var name = VARS[v];
+        if (e[name] !== null){ g[k][name][0] += e[name]; g[k][name][1] += 1; }
+      }
+    }
+    var out = {};
+    Object.keys(g).forEach(function(k){
+      var o = {};
+      for (var v = 0; v < VARS.length; v++){
+        var s = g[k][VARS[v]];
+        o[VARS[v]] = s[1] >= minHoras ? s[0] / s[1] : null;
+        o["h_" + VARS[v]] = s[1];
+      }
+      out[k] = o;
+    });
+    return out;
+  }
+
+  // Respuesta diaria de NASA POWER -> {days:{YYYY-MM-DD:{temp,hum,pres(hPa)}}, elev}
+  function parsePowerDaily(json){
+    var par = json && json.properties && json.properties.parameter;
+    if (!par || !par.T2M) return null;
+    var okv = function(v){ return typeof v === "number" && v > -900; };
+    var elev = null;
+    var geo = json.geometry && json.geometry.coordinates;
+    if (geo && typeof geo[2] === "number") elev = geo[2];
+    var days = {};
+    Object.keys(par.T2M).forEach(function(s){
+      var t = par.T2M[s];
+      var h = par.RH2M ? par.RH2M[s] : undefined;
+      var p = par.PS ? par.PS[s] : undefined; // kPa
+      var o = { temp: okv(t) ? t : null, hum: okv(h) ? h : null, pres: okv(p) ? p * 10 : null };
+      if (o.temp !== null || o.hum !== null || o.pres !== null) days[powerToKey(s)] = o;
+    });
+    return { days: days, elev: elev };
+  }
+
+  // dz = elevacion estacion - elevacion celda (m). Temperatura: 6.5 C/km. Presion: barometrica.
+  function ajustarElevacion(satDay, dz){
+    var tk = satDay.temp !== null ? satDay.temp + 273.15 : 300;
+    return {
+      temp: satDay.temp === null ? null : satDay.temp - 0.0065 * dz,
+      hum: satDay.hum,
+      pres: satDay.pres === null ? null : satDay.pres * Math.exp(-0.034163 * dz / tk)
+    };
+  }
+
+  // Presion reducida a nivel del mar -> presion de superficie en la estacion.
+  // "isa": inversa de la reduccion tipica de las librerias de BME280, P0 = P / (1 - h/44330)^5.255
+  // "hipsometrica": usa la temperatura del aire (formula barometrica con gradiente de 6.5 C/km)
+  function presionSnmAEstacion(pSnm, tempC, elev, metodo){
+    if (metodo === "hipsometrica"){
+      var t = (typeof tempC === "number") ? tempC : 25;
+      return pSnm * Math.pow(1 - 0.0065 * elev / (t + 0.0065 * elev + 273.15), 5.257);
+    }
+    return pSnm * Math.pow(1 - elev / 44330, 5.255);
+  }
+
+  // Devuelve una copia de los promedios diarios con pres = presion de superficie
+  // y pres_snm = presion reportada por la estacion (nivel del mar)
+  function convertirPresionEstacion(est, elev, metodo, esNivelMar){
+    var out = {};
+    Object.keys(est).forEach(function(k){
+      var e = est[k], o = {};
+      Object.keys(e).forEach(function(f){ o[f] = e[f]; });
+      o.pres_snm = e.pres;
+      if (esNivelMar && e.pres !== null) o.pres = presionSnmAEstacion(e.pres, e.temp, elev, metodo);
+      out[k] = o;
+    });
+    return out;
+  }
+
+  function buildPairs(est, power, elevEst, adjust){
+    var dz = (typeof elevEst === "number" && power && typeof power.elev === "number") ? (elevEst - power.elev) : null;
+    var res = { temp: [], hum: [], pres: [] };
+    Object.keys(est).sort().forEach(function(k){
+      var s = power.days[k];
+      if (!s) return;
+      var a = dz === null ? s : ajustarElevacion(s, dz);
+      for (var v = 0; v < VARS.length; v++){
+        var n = VARS[v];
+        if (est[k][n] !== null && s[n] !== null){
+          res[n].push({ dia: k, est: est[k][n], satRaw: s[n], satAdj: a[n], sat: (adjust && dz !== null) ? a[n] : s[n] });
+        }
+      }
+    });
+    return { pairs: res, dz: dz };
+  }
+
+  // Sesgo (est - sat), MAE, RMSE y correlacion de Pearson
+  function metrics(pairs){
+    var n = pairs.length;
+    if (!n) return null;
+    var sd = 0, sa = 0, sq = 0, se = 0, ss = 0;
+    for (var i = 0; i < n; i++){
+      var d = pairs[i].est - pairs[i].sat;
+      sd += d; sa += Math.abs(d); sq += d * d; se += pairs[i].est; ss += pairs[i].sat;
+    }
+    var r = null;
+    if (n >= 3){
+      var me = se / n, ms = ss / n, num = 0, de = 0, ds = 0;
+      for (var j = 0; j < n; j++){
+        var a = pairs[j].est - me, b = pairs[j].sat - ms;
+        num += a * b; de += a * a; ds += b * b;
+      }
+      if (de > 0 && ds > 0) r = num / Math.sqrt(de * ds);
+    }
+    return { n: n, mbe: sd / n, mae: sa / n, rmse: Math.sqrt(sq / n), r: r };
+  }
+
+  function seriesFor(dias, pairs){
+    var est = [], sat = [];
+    var idx = {};
+    for (var i = 0; i < pairs.length; i++) idx[pairs[i].dia] = pairs[i];
+    for (var k = 0; k < dias.length; k++){
+      var p = idx[dias[k]];
+      est.push(p ? p.est : null);
+      sat.push(p ? p.sat : null);
+    }
+    return { est: est, sat: sat };
+  }
+
+  function lineChartSVG(dias, estArr, satArr, dec){
+    var W = 640, H = 240, ml = 50, mr = 14, mt = 30, mb = 30;
+    var vals = [];
+    var all = estArr.concat(satArr);
+    for (var q = 0; q < all.length; q++) if (all[q] !== null) vals.push(all[q]);
+    if (!vals.length || !dias.length) return '<div class="chart-empty">Sin datos para graficar</div>';
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    if (hi - lo < 1e-9){ lo -= 1; hi += 1; }
+    var pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+    var n = dias.length;
+    function X(i){ return ml + (n === 1 ? (W - ml - mr) / 2 : i * (W - ml - mr) / (n - 1)); }
+    function Y(v){ return mt + (hi - v) * (H - mt - mb) / (hi - lo); }
+    function path(arr, cls){
+      var d = "", prev = false;
+      for (var i = 0; i < arr.length; i++){
+        if (arr[i] === null){ prev = false; continue; }
+        d += (prev ? "L" : "M") + X(i).toFixed(1) + " " + Y(arr[i]).toFixed(1) + " ";
+        prev = true;
+      }
+      return d ? '<path class="' + cls + '" d="' + d + '"/>' : "";
+    }
+    function dots(arr, cls, label){
+      var s = "";
+      for (var i = 0; i < arr.length; i++){
+        if (arr[i] === null) continue;
+        s += '<circle class="' + cls + '" cx="' + X(i).toFixed(1) + '" cy="' + Y(arr[i]).toFixed(1) + '" r="2.4"><title>' +
+             label + " " + dias[i] + ": " + arr[i].toFixed(dec) + "</title></circle>";
+      }
+      return s;
+    }
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" xmlns="http://www.w3.org/2000/svg" role="img">';
+    for (var g = 0; g <= 4; g++){
+      var gv = lo + (hi - lo) * g / 4, gy = Y(gv).toFixed(1);
+      s += '<line class="grid-line" x1="' + ml + '" x2="' + (W - mr) + '" y1="' + gy + '" y2="' + gy + '"/>' +
+           '<text class="axis" x="' + (ml - 6) + '" y="' + (Number(gy) + 4) + '" text-anchor="end">' + gv.toFixed(dec) + "</text>";
+    }
+    var step = Math.max(1, Math.ceil(n / 6));
+    for (var t = 0; t < n; t += step){
+      s += '<text class="axis" x="' + X(t).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + dias[t].slice(5) + "</text>";
+    }
+    s += path(estArr, "s-est") + path(satArr, "s-sat") + dots(estArr, "p-est", "Estación") + dots(satArr, "p-sat", "NASA POWER");
+    s += '<line class="s-est" x1="' + (W - 190) + '" x2="' + (W - 170) + '" y1="14" y2="14"/><text class="legend" x="' + (W - 165) + '" y="18">Estación</text>' +
+         '<line class="s-sat" x1="' + (W - 100) + '" x2="' + (W - 80) + '" y1="14" y2="14"/><text class="legend" x="' + (W - 75) + '" y="18">POWER</text>';
+    return s + "</svg>";
+  }
+
+  function toCSV(est, power, meta, adjustInfo){
+    var lines = [];
+    lines.push("# Validación estación EBC vs NASA POWER");
+    lines.push("# estacion: " + meta.nombre + " (canal ThingSpeak " + meta.channel + ")");
+    lines.push("# coordenadas: " + meta.lat + ", " + meta.lon);
+    lines.push("# elevacion_estacion_m: " + meta.elev_m + "; elevacion_celda_power_m: " + (typeof power.elev === "number" ? power.elev : "n/d"));
+    lines.push("# ventana_dias: " + meta.ventana + "; min_horas_por_dia: " + meta.minHoras);
+    lines.push("# fecha_descarga_utc: " + meta.descarga);
+    lines.push("# presion_estacion: " + meta.presionInfo);
+    lines.push("# power: parametros T2M, RH2M, PS (kPa convertido a hPa); comunidad AG; los datos recientes pueden revisarse");
+    lines.push("# ajuste_elevacion_aplicado_en_columnas_ajust: gradiente 6.5 C/km y formula barometrica");
+    lines.push("fecha,temp_est_C,temp_power_C,temp_power_ajust_C,hum_est_pct,hum_power_pct,pres_est_snm_hPa,pres_est_superficie_hPa,pres_power_hPa,pres_power_ajust_hPa,horas_temp,horas_hum,horas_pres");
+    var dz = adjustInfo;
+    var keys = Object.keys(est).sort();
+    for (var i = 0; i < keys.length; i++){
+      var k = keys[i], e = est[k], s = power.days[k] || { temp: null, hum: null, pres: null };
+      var a = (dz !== null && power.days[k]) ? ajustarElevacion(s, dz) : { temp: null, hum: null, pres: null };
+      var c = function(v, d){ return (v === null || v === undefined) ? "" : v.toFixed(d); };
+      lines.push([k, c(e.temp, 3), c(s.temp, 3), c(a.temp, 3), c(e.hum, 3), c(s.hum, 3), c(e.pres_snm !== undefined ? e.pres_snm : null, 3), c(e.pres, 3), c(s.pres, 3), c(a.pres, 3), e.h_temp, e.h_hum, e.h_pres].join(","));
+    }
+    return lines.join("\n");
+  }
+  // ---- PURE-END
+
+  // ============================================================
+  // APLICACION
+  // ============================================================
+  var CFG = (typeof EBC_CONFIG !== "undefined") ? EBC_CONFIG : null;
+  var state = {
+    ventana: 30,
+    est: null,            // promedios diarios de la estacion
+    estInfo: null,        // {descartados, entradas}
+    last: null,           // ultima lectura
+    power: null,          // {days, elev}
+    powerFetchedAt: 0,
+    estFetchedAt: 0,
+    estError: null,
+    powerError: null
+  };
+  var timers = [];
+
+  function $(id){ return document.getElementById(id); }
+  function setText(id, t){ var el = $(id); if (el) el.textContent = t; }
+  function setHTML(id, h){ var el = $(id); if (el) el.innerHTML = h; }
+
+  function hhmm(ms){
+    return new Date(ms).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit", hour12: false });
+  }
+
+  async function fetchJSON(url){
+    var ctrl = new AbortController();
+    var to = setTimeout(function(){ ctrl.abort(); }, 20000);
+    try {
+      var res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return await res.json();
+    } finally {
+      clearTimeout(to);
+    }
+  }
+
+  function tsUrl(path, extra){
+    var ts = CFG.estacion.thingspeak;
+    var q = [];
+    if (ts.readKey) q.push("api_key=" + encodeURIComponent(ts.readKey));
+    if (extra) q.push(extra);
+    return "https://api.thingspeak.com/channels/" + ts.channel + "/" + path + (q.length ? "?" + q.join("&") : "");
+  }
+
+  function localNowShifted(){
+    return new Date(Date.now() + CFG.utcOffsetHoras * MS_H);
+  }
+  function ymdShifted(d){
+    return d.toISOString().slice(0, 10).replace(/-/g, "");
+  }
+
+  async function loadStation(){
+    var ts = CFG.estacion.thingspeak;
+    try {
+      var results = await Promise.all([
+        fetchJSON(tsUrl("feeds/last.json")),
+        fetchJSON(tsUrl("feeds.json", "days=" + state.ventana + "&average=60&results=8000"))
+      ]);
+      var last = results[0];
+      var parsed = parseThingSpeakFeeds(results[1], ts.campos);
+      var todayKey = localDayKey(new Date(), CFG.utcOffsetHoras);
+      state.est = convertirPresionEstacion(
+        aggregateDaily(parsed.entries, CFG.utcOffsetHoras, CFG.minHorasPorDia, todayKey),
+        CFG.estacion.elev_m, CFG.estacion.reduccionPresion || "isa", CFG.estacion.presionNivelMar === true);
+      state.estInfo = { descartados: parsed.descartados, entradas: parsed.entries.length };
+      state.last = last;
+      state.estFetchedAt = Date.now();
+      state.estError = null;
+    } catch (err){
+      state.estError = (err && err.message) ? err.message : "error de red";
+    }
+  }
+
+  async function loadPower(force){
+    var ttl = CFG.refrescoPowerHoras * MS_H;
+    if (!force && state.power && state.powerWindow === state.ventana && (Date.now() - state.powerFetchedAt) < ttl) return;
+    var now = localNowShifted();
+    var ini = new Date(now.getTime() - (state.ventana + 1) * 24 * MS_H);
+    var url = "https://power.larc.nasa.gov/api/temporal/daily/point" +
+      "?parameters=T2M,RH2M,PS&community=AG" +
+      "&longitude=" + CFG.estacion.lon + "&latitude=" + CFG.estacion.lat +
+      "&start=" + ymdShifted(ini) + "&end=" + ymdShifted(now) + "&format=JSON";
+    try {
+      var json = await fetchJSON(url);
+      var p = parsePowerDaily(json);
+      if (!p) throw new Error("Respuesta sin datos válidos");
+      state.power = p;
+      state.powerWindow = state.ventana;
+      state.powerFetchedAt = Date.now();
+      state.powerError = null;
+    } catch (err){
+      state.powerError = (err && err.message) ? err.message : "error de red";
+    }
+  }
+
+  function currentPairs(){
+    if (!state.est || !state.power) return null;
+    var adj = $("adjChk") && $("adjChk").checked;
+    return buildPairs(state.est, state.power, CFG.estacion.elev_m, adj);
+  }
+
+  function render(){
+    // Estado de las fuentes
+    var stS = $("stStation"), stP = $("stPower");
+    if (stS){
+      if (state.estError){ stS.textContent = "Estación: error (" + state.estError + ")"; stS.className = "pill bad"; }
+      else if (state.estFetchedAt){ stS.textContent = "Estación: actualizada " + hhmm(state.estFetchedAt) + " (cada " + CFG.refrescoEstacionMin + " min)"; stS.className = "pill ok"; }
+    }
+    if (stP){
+      if (state.powerError){ stP.textContent = "NASA POWER: error (" + state.powerError + ")"; stP.className = "pill bad"; }
+      else if (state.powerFetchedAt){ stP.textContent = "NASA POWER: actualizado " + hhmm(state.powerFetchedAt) + " (cada " + CFG.refrescoPowerHoras + " h)"; stP.className = "pill ok"; }
+    }
+
+    // Ultima lectura
+    setText("lastName", CFG.estacion.nombre);
+    var l = state.last;
+    if (l){
+      var tsf = CFG.estacion.thingspeak.campos;
+      var t = parseFloat(l[tsf.temp]), h = parseFloat(l[tsf.humedad]), p = parseFloat(l[tsf.presion]);
+      setHTML("lastTemp", fmt(isNaN(t) ? null : t, 1) + '<span class="unit">°C</span>');
+      setHTML("lastHum", fmt(isNaN(h) ? null : h, 0) + '<span class="unit">%</span>');
+      setHTML("lastPres", fmt(isNaN(p) ? null : p, 1) + '<span class="unit">hPa</span>');
+      var pSfc = isNaN(p) ? null : (CFG.estacion.presionNivelMar === true
+        ? presionSnmAEstacion(p, isNaN(t) ? null : t, CFG.estacion.elev_m, CFG.estacion.reduccionPresion || "isa")
+        : p);
+      setHTML("lastPresSfc", fmt(pSfc, 1) + '<span class="unit">hPa</span>');
+      var created = new Date(l.created_at);
+      var ageMin = isNaN(created.getTime()) ? null : Math.round((Date.now() - created.getTime()) / 60000);
+      var ageEl = $("lastAge");
+      if (ageEl){
+        if (ageMin === null){ ageEl.textContent = "—"; ageEl.className = "value"; }
+        else {
+          var vieja = ageMin > CFG.lecturaViejaMin;
+          ageEl.textContent = (ageMin < 90 ? ageMin + " min" : (ageMin / 60).toFixed(1) + " h") + (vieja ? " · atrasada" : "");
+          ageEl.className = "value " + (vieja ? "warn" : "good");
+        }
+      }
+    }
+
+    // Metricas y graficas
+    var bp = currentPairs();
+    var body = $("metricsBody");
+    if (body) body.innerHTML = "";
+    var nombres = { temp: ["Temperatura (°C)", 2, "chartTemp", 1], hum: ["Humedad (%)", 1, "chartHum", 0], pres: ["Presión de superficie (hPa)", 2, "chartPres", 1] };
+    if (!bp){
+      setText("metricsInfo", "esperando ambas fuentes");
+      VARS.forEach(function(v){ setHTML(nombres[v][2], '<div class="chart-empty">Esperando datos…</div>'); });
+      return;
+    }
+    var dias = Object.keys(state.est).sort();
+    var totalComparados = 0;
+    VARS.forEach(function(v){
+      var m = metrics(bp.pairs[v]);
+      if (m) totalComparados = Math.max(totalComparados, m.n);
+      if (body){
+        var tr = document.createElement("tr");
+        if (m){
+          var dec = nombres[v][1];
+          tr.innerHTML = "<td>" + nombres[v][0] + "</td>" +
+            '<td class="num">' + m.n + "</td>" +
+            '<td class="num">' + fmtSigned(m.mbe, dec) + "</td>" +
+            '<td class="num">' + fmt(m.mae, dec) + "</td>" +
+            '<td class="num">' + fmt(m.rmse, dec) + "</td>" +
+            '<td class="num">' + (m.r === null ? "—" : m.r.toFixed(3)) + "</td>";
+        } else {
+          tr.innerHTML = "<td>" + nombres[v][0] + '</td><td class="num" colspan="5">sin días en común</td>';
+        }
+        body.appendChild(tr);
+      }
+      var sr = seriesFor(dias, bp.pairs[v]);
+      setHTML(nombres[v][2], lineChartSVG(dias, sr.est, sr.sat, nombres[v][3]));
+    });
+    setText("metricsInfo", totalComparados + " días comparados de " + dias.length + " con datos de estación");
+    var adjChk = $("adjChk");
+    if (adjChk) adjChk.disabled = (bp.dz === null);
+    var note = "";
+    if (bp.dz === null){
+      note = "La respuesta de NASA POWER no incluyó la elevación de la celda, así que no se puede ajustar.";
+    } else {
+      note = "Elevación de la estación " + CFG.estacion.elev_m + " m; celda de POWER " + state.power.elev.toFixed(0) + " m (diferencia " + fmtSigned(bp.dz, 0) + " m). " +
+             (adjChk && adjChk.checked ? "Se aplica el ajuste de temperatura y presión." : "Ajuste desactivado: se comparan los valores de POWER sin corregir.");
+    }
+    if (CFG.estacion.presionNivelMar === true){
+      note += " La presión de la estación se reporta a nivel del mar; se convirtió a presión de superficie (método " +
+              (CFG.estacion.reduccionPresion || "isa") + ", " + CFG.estacion.elev_m + " m) antes de comparar con POWER.";
+    }
+    if (state.estInfo && state.estInfo.descartados > 0) note += " Se descartaron " + state.estInfo.descartados + " lecturas de la estación fuera de rango físico.";
+    if (totalComparados > 0 && totalComparados < 14) note += " Muestra pequeña: interpretar con cautela.";
+    setText("adjNote", note);
+  }
+
+  async function refreshAll(forcePower){
+    await Promise.all([loadStation(), loadPower(forcePower)]);
+    render();
+  }
+
+  function exportCSV(){
+    if (!state.est || !state.power){ alert("Aún no hay datos de ambas fuentes."); return; }
+    var bp = buildPairs(state.est, state.power, CFG.estacion.elev_m, false);
+    var meta = {
+      nombre: CFG.estacion.nombre, channel: CFG.estacion.thingspeak.channel,
+      lat: CFG.estacion.lat, lon: CFG.estacion.lon, elev_m: CFG.estacion.elev_m,
+      ventana: state.ventana, minHoras: CFG.minHorasPorDia, descarga: new Date().toISOString(),
+      presionInfo: CFG.estacion.presionNivelMar === true
+        ? "reportada a nivel del mar; convertida a superficie con metodo " + (CFG.estacion.reduccionPresion || "isa") + " y elevacion " + CFG.estacion.elev_m + " m"
+        : "reportada como presion de superficie"
+    };
+    var csv = toCSV(state.est, state.power, meta, bp.dz);
+    var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "validacion_" + CFG.estacion.id + "_" + new Date().toISOString().slice(0, 10) + ".csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function init(){
+    if (!CFG){
+      var b = $("errBanner");
+      if (b){
+        b.style.display = "block";
+        b.innerHTML = "<strong>Falta config.js.</strong> Coloca config.js en la misma carpeta que esta página.";
+      }
+      return;
+    }
+    state.ventana = CFG.ventanaDiasDefault || 30;
+    var win = $("winSelect");
+    if (win) win.value = String(state.ventana);
+
+    if (win) win.addEventListener("change", function(){
+      state.ventana = parseInt(win.value, 10) || 30;
+      state.est = null; state.power = null;
+      render();
+      refreshAll(true);
+    });
+    var adj = $("adjChk");
+    if (adj) adj.addEventListener("change", render);
+    var br = $("btnRefresh");
+    if (br) br.addEventListener("click", function(){ refreshAll(true); });
+    var bc = $("btnCsv");
+    if (bc) bc.addEventListener("click", exportCSV);
+
+    refreshAll(true);
+    timers.push(setInterval(function(){ loadStation().then(render); }, CFG.refrescoEstacionMin * 60000));
+    timers.push(setInterval(function(){ loadPower(false).then(render); }, 30 * 60000));
+  }
+
+  if (typeof document !== "undefined" && document.getElementById("winSelect")) init();
+</script>
+
+</body>
+</html>
