@@ -1,4 +1,7 @@
 # 🪐 Agri-OPEX Simulator: Zacapa vs. Mars
+
+**Autor:** Marlon Estuardo Alvarado Kuckling · Ingeniero Industrial · Guatemala
+
 > **Bridging Low-Cost IoT Hardware & Satellite Data for Controlled Environment Agriculture (CEA)**
 
 [![GitHub Pages](https://img.shields.io/badge/Demo-Live%20Simulation-brightgreen?style=for-the-badge&logo=github)](https://kuckling.github.io/agri-opex-simulato/)
